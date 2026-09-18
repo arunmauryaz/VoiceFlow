@@ -283,22 +283,57 @@
                                   HorizontalAlignment="Stretch" />
                     </Grid>
 
-                    <Grid ColumnDefinitions="140,*">
+                    <Grid ColumnDefinitions="140,*,Auto,Auto,Auto">
                         <TextBlock Grid.Column="0" Text="API Key" VerticalAlignment="Center" FontWeight="Medium" />
                         <TextBox Grid.Column="1"
                                  Text="{Binding ApiKeyInput, Mode=TwoWay}"
-                                 PasswordChar="•"
-                                 Watermark="Enter Google Gemini API Key" />
+                                 PasswordChar="{Binding ApiKeyPasswordChar}"
+                                 Watermark="Paste your Gemini API key (e.g. AIzaSy...)"
+                                 VerticalAlignment="Center" />
+                        <!-- Reveal / Mask Eye Toggle -->
+                        <Button Grid.Column="2"
+                                Margin="6,0,0,0"
+                                Classes="secondary"
+                                Padding="8,6"
+                                ToolTip.Tip="Show / Hide API Key"
+                                Command="{Binding ToggleRevealApiKeyCommand}">
+                            <TextBlock Text="{Binding RevealButtonIcon}"
+                                       FontSize="12" />
+                        </Button>
+                        <!-- Paste from Clipboard Button -->
+                        <Button Grid.Column="3"
+                                Margin="4,0,0,0"
+                                Classes="secondary"
+                                Padding="8,6"
+                                ToolTip.Tip="Paste API key from clipboard"
+                                Command="{Binding PasteApiKeyFromClipboardCommand}">
+                            <TextBlock Text="📋" FontSize="12" />
+                        </Button>
+                        <!-- Clear Button -->
+                        <Button Grid.Column="4"
+                                Margin="4,0,0,0"
+                                Classes="secondary"
+                                Padding="8,6"
+                                ToolTip.Tip="Clear API key"
+                                Command="{Binding ClearApiKeyCommand}">
+                            <TextBlock Text="✕" FontSize="12" />
+                        </Button>
                     </Grid>
 
+                    <!-- Action Buttons -->
                     <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
                         <Button Classes="primary"
                                 Content="Save API Key"
                                 Command="{Binding SaveApiKeyCommand}" />
                         <Button Classes="secondary"
-                                Content="{Binding IsTestingConnection, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=True, FallbackValue='Test Connection'}"
                                 Command="{Binding TestConnectionCommand}"
-                                IsEnabled="{Binding !IsTestingConnection}" />
+                                IsEnabled="{Binding !IsTestingConnection}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="⚡" IsVisible="{Binding !IsTestingConnection}" VerticalAlignment="Center" />
+                                <TextBlock Text="◌" IsVisible="{Binding IsTestingConnection}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding TestConnectionButtonText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
 
                     <!-- Connection Status Feedback -->

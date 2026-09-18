@@ -86,6 +86,21 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool _hasSavedApiKey;
 
     [ObservableProperty]
+    private bool _isApiKeyRevealed;
+
+    [ObservableProperty]
+    private char _apiKeyPasswordChar = '•';
+
+    [ObservableProperty]
+    private string _revealButtonIcon = "👁️";
+
+    [ObservableProperty]
+    private string _testConnectionButtonText = "Test Connection";
+
+    [ObservableProperty]
+    private string _savedKeyPreviewText = string.Empty;
+
+    [ObservableProperty]
     private string _selectedModel = "gemini-2.5-flash";
 
     [ObservableProperty]
@@ -203,10 +218,20 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         var s = _settingsService.Settings;
 
-        HasSavedApiKey = _settingsService.HasApiKey;
-        if (HasSavedApiKey)
+        string? savedKey = _settingsService.LoadApiKey();
+        HasSavedApiKey = !string.IsNullOrEmpty(savedKey);
+        ApiKeyInput = savedKey ?? string.Empty;
+        if (HasSavedApiKey && savedKey!.Length > 8)
         {
-            ApiKeyInput = "••••••••••••••••••••••••";
+            SavedKeyPreviewText = $"{savedKey[..4]}...{savedKey[^4..]}";
+            ConnectionStatusMessage = $"✓ API key loaded ({SavedKeyPreviewText}). Click Test Connection to verify.";
+            ConnectionStatusColor = "#22C55E";
+        }
+        else if (HasSavedApiKey)
+        {
+            SavedKeyPreviewText = "Configured";
+            ConnectionStatusMessage = "✓ API key loaded. Click Test Connection to verify.";
+            ConnectionStatusColor = "#22C55E";
         }
 
         SelectedModel = s.GeminiModel;
@@ -299,39 +324,42 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void SaveApiKey()
     {
-        if (string.IsNullOrWhiteSpace(ApiKeyInput) || ApiKeyInput.Contains('•'))
+        string key = ApiKeyInput?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(key))
         {
-            ConnectionStatusMessage = "Please enter a valid Gemini API key.";
+            ConnectionStatusMessage = "Please paste or type your Gemini API key.";
             ConnectionStatusColor = "#EF4444";
             return;
         }
 
-        _settingsService.SaveApiKey(ApiKeyInput.Trim());
+        _settingsService.SaveApiKey(key);
         HasSavedApiKey = true;
-        ApiKeyInput = "••••••••••••••••••••••••";
-        ConnectionStatusMessage = "API key securely saved.";
+        SavedKeyPreviewText = key.Length > 8 ? $"{key[..4]}...{key[^4..]}" : "Configured";
+        ConnectionStatusMessage = $"✓ API key securely saved ({SavedKeyPreviewText}) in Windows DPAPI storage.";
         ConnectionStatusColor = "#22C55E";
     }
 
     [RelayCommand]
     private async Task TestConnectionAsync()
     {
-        if (!_settingsService.HasApiKey && (string.IsNullOrWhiteSpace(ApiKeyInput) || ApiKeyInput.Contains('•')))
+        string key = ApiKeyInput?.Trim() ?? string.Empty;
+        if (!string.IsNullOrEmpty(key))
+        {
+            _settingsService.SaveApiKey(key);
+            HasSavedApiKey = true;
+            SavedKeyPreviewText = key.Length > 8 ? $"{key[..4]}...{key[^4..]}" : "Configured";
+        }
+
+        if (!_settingsService.HasApiKey)
         {
             ConnectionStatusMessage = "✕ Please enter an API key first.";
             ConnectionStatusColor = "#EF4444";
             return;
         }
 
-        if (!ApiKeyInput.Contains('•') && !string.IsNullOrWhiteSpace(ApiKeyInput))
-        {
-            _settingsService.SaveApiKey(ApiKeyInput.Trim());
-            HasSavedApiKey = true;
-            ApiKeyInput = "••••••••••••••••••••••••";
-        }
-
         IsTestingConnection = true;
-        ConnectionStatusMessage = "Testing connection to Gemini API...";
+        TestConnectionButtonText = "Testing...";
+        ConnectionStatusMessage = "Connecting to Google Gemini API...";
         ConnectionStatusColor = "#38BDF8";
 
         try
@@ -348,7 +376,44 @@ public partial class MainWindowViewModel : ViewModelBase
         finally
         {
             IsTestingConnection = false;
+            TestConnectionButtonText = "Test Connection";
         }
+    }
+
+    [RelayCommand]
+    private void ToggleRevealApiKey()
+    {
+        IsApiKeyRevealed = !IsApiKeyRevealed;
+        ApiKeyPasswordChar = IsApiKeyRevealed ? '\0' : '•';
+        RevealButtonIcon = IsApiKeyRevealed ? "🔒" : "👁️";
+    }
+
+    [RelayCommand]
+    private async Task PasteApiKeyFromClipboardAsync()
+    {
+        string? text = await _clipboardService.GetTextAsync();
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            ApiKeyInput = text.Trim();
+            ConnectionStatusMessage = "Key pasted! Click 'Save API Key' or 'Test Connection'.";
+            ConnectionStatusColor = "#38BDF8";
+        }
+        else
+        {
+            ConnectionStatusMessage = "Clipboard is empty or does not contain text.";
+            ConnectionStatusColor = "#EF4444";
+        }
+    }
+
+    [RelayCommand]
+    private void ClearApiKey()
+    {
+        ApiKeyInput = string.Empty;
+        _settingsService.SaveApiKey(string.Empty);
+        HasSavedApiKey = false;
+        SavedKeyPreviewText = string.Empty;
+        ConnectionStatusMessage = "API key cleared.";
+        ConnectionStatusColor = "#94A3B8";
     }
 
     [RelayCommand]
