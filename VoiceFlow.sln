@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VoiceFlow", "VoiceFlow\VoiceFlow.csproj", "{88F1F956-04BF-479E-B735-ADFD6C4ED5D3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VoiceFlow.Tests", "VoiceFlow.Tests\VoiceFlow.Tests.csproj", "{7B192BBA-3BE4-41C3-84E6-FE65A71C4E8E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{88F1F956-04BF-479E-B735-ADFD6C4ED5D3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88F1F956-04BF-479E-B735-ADFD6C4ED5D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88F1F956-04BF-479E-B735-ADFD6C4ED5D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88F1F956-04BF-479E-B735-ADFD6C4ED5D3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7B192BBA-3BE4-41C3-84E6-FE65A71C4E8E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7B192BBA-3BE4-41C3-84E6-FE65A71C4E8E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7B192BBA-3BE4-41C3-84E6-FE65A71C4E8E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7B192BBA-3BE4-41C3-84E6-FE65A71C4E8E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

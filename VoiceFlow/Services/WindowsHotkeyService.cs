@@ -1,0 +1,176 @@
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using VoiceFlow.Interfaces;
+using VoiceFlow.Models;
+using VoiceFlow.Native;
+
+namespace VoiceFlow.Services;
+
+public class WindowsHotkeyService : IGlobalHotkeyService
+{
+    private IntPtr _hookId = IntPtr.Zero;
+    private Win32PInvoke.LowLevelKeyboardProc? _proc;
+    private HotkeyConfig _config = HotkeyConfig.Default;
+    private HotkeyActivationMode _mode = HotkeyActivationMode.HoldToTalk;
+
+    private bool _isHotkeyHeld;
+    private bool _isToggledOn;
+    private bool _isDisposed;
+
+    public bool IsRegistered => _hookId != IntPtr.Zero;
+    public bool IsPaused { get; set; }
+    public HotkeyConfig CurrentConfig => _config;
+    public HotkeyActivationMode CurrentMode => _mode;
+
+    public event EventHandler? HotkeyPressed;
+    public event EventHandler? HotkeyReleased;
+
+    public WindowsHotkeyService()
+    {
+        _proc = HookCallback;
+    }
+
+    public bool RegisterHotkey(HotkeyConfig config, HotkeyActivationMode mode)
+    {
+        UnregisterHotkey();
+
+        _config = config;
+        _mode = mode;
+        _isHotkeyHeld = false;
+        _isToggledOn = false;
+
+        try
+        {
+            using var curProcess = Process.GetCurrentProcess();
+            using var curModule = curProcess.MainModule;
+            IntPtr moduleHandle = Win32PInvoke.GetModuleHandle(curModule?.ModuleName);
+
+            _hookId = Win32PInvoke.SetWindowsHookEx(
+                Win32Constants.WH_KEYBOARD_LL,
+                _proc!,
+                moduleHandle,
+                0);
+
+            if (_hookId == IntPtr.Zero)
+            {
+                int errorCode = Marshal.GetLastWin32Error();
+                AppLogger.LogError($"Failed to register low-level keyboard hook. Error code: {errorCode}");
+                return false;
+            }
+
+            AppLogger.LogInfo($"Registered global hotkey [{_config}] in {_mode} mode.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Exception while installing keyboard hook.", ex);
+            return false;
+        }
+    }
+
+    public void UnregisterHotkey()
+    {
+        if (_hookId != IntPtr.Zero)
+        {
+            Win32PInvoke.UnhookWindowsHookEx(_hookId);
+            _hookId = IntPtr.Zero;
+            _isHotkeyHeld = false;
+            _isToggledOn = false;
+            AppLogger.LogInfo("Unregistered global keyboard hook.");
+        }
+    }
+
+    private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && !IsPaused)
+        {
+            int msg = wParam.ToInt32();
+            var kbStruct = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+            uint vk = kbStruct.vkCode;
+
+            bool isKeyDown = msg == Win32Constants.WM_KEYDOWN || msg == Win32Constants.WM_SYSKEYDOWN;
+            bool isKeyUp = msg == Win32Constants.WM_KEYUP || msg == Win32Constants.WM_SYSKEYUP;
+
+            if (isKeyDown)
+            {
+                if (vk == _config.VirtualKey && AreModifiersActive(_config.Modifiers))
+                {
+                    if (_mode == HotkeyActivationMode.HoldToTalk)
+                    {
+                        if (!_isHotkeyHeld)
+                        {
+                            _isHotkeyHeld = true;
+                            HotkeyPressed?.Invoke(this, EventArgs.Empty);
+                        }
+                    }
+                    else // Toggle mode
+                    {
+                        if (!_isToggledOn)
+                        {
+                            _isToggledOn = true;
+                            HotkeyPressed?.Invoke(this, EventArgs.Empty);
+                        }
+                        else
+                        {
+                            _isToggledOn = false;
+                            HotkeyReleased?.Invoke(this, EventArgs.Empty);
+                        }
+                    }
+                }
+            }
+            else if (isKeyUp)
+            {
+                if (_mode == HotkeyActivationMode.HoldToTalk && _isHotkeyHeld)
+                {
+                    // If target key was released OR a required modifier was released
+                    if (vk == _config.VirtualKey || IsRequiredModifierReleased(vk, _config.Modifiers))
+                    {
+                        _isHotkeyHeld = false;
+                        HotkeyReleased?.Invoke(this, EventArgs.Empty);
+                    }
+                }
+            }
+        }
+
+        return Win32PInvoke.CallNextHookEx(_hookId, nCode, wParam, lParam);
+    }
+
+    private static bool AreModifiersActive(KeyModifiers required)
+    {
+        bool ctrlDown = (Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_CONTROL) & 0x8000) != 0;
+        bool altDown = (Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_MENU) & 0x8000) != 0;
+        bool shiftDown = (Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_SHIFT) & 0x8000) != 0;
+        bool winDown = ((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_LWIN) |
+                         Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_RWIN)) & 0x8000) != 0;
+
+        if (required.HasFlag(KeyModifiers.Control) != ctrlDown) return false;
+        if (required.HasFlag(KeyModifiers.Alt) != altDown) return false;
+        if (required.HasFlag(KeyModifiers.Shift) != shiftDown) return false;
+        if (required.HasFlag(KeyModifiers.Windows) != winDown) return false;
+
+        return true;
+    }
+
+    private static bool IsRequiredModifierReleased(uint vk, KeyModifiers required)
+    {
+        if (required.HasFlag(KeyModifiers.Control) && (vk == Win32Constants.VK_CONTROL || vk == 0xA2 || vk == 0xA3))
+            return true;
+        if (required.HasFlag(KeyModifiers.Alt) && (vk == Win32Constants.VK_MENU || vk == 0xA4 || vk == 0xA5))
+            return true;
+        if (required.HasFlag(KeyModifiers.Shift) && (vk == Win32Constants.VK_SHIFT || vk == 0xA0 || vk == 0xA1))
+            return true;
+        if (required.HasFlag(KeyModifiers.Windows) && (vk == Win32Constants.VK_LWIN || vk == Win32Constants.VK_RWIN))
+            return true;
+
+        return false;
+    }
+
+    public void Dispose()
+    {
+        if (_isDisposed) return;
+        _isDisposed = true;
+        UnregisterHotkey();
+        _proc = null;
+    }
+}
