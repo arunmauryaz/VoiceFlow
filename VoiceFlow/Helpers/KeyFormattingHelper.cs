@@ -11,16 +11,24 @@ public static class KeyFormattingHelper
     {
         var parts = new List<string>();
 
-        if (config.Modifiers.HasFlag(KeyModifiers.Control))
+        bool isCtrlVk = config.VirtualKey is Win32Constants.VK_CONTROL or 0xA2 or 0xA3;
+        bool isAltVk = config.VirtualKey is Win32Constants.VK_MENU or 0xA4 or 0xA5;
+        bool isShiftVk = config.VirtualKey is Win32Constants.VK_SHIFT or 0xA0 or 0xA1;
+        bool isWinVk = config.VirtualKey is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
+
+        if (config.Modifiers.HasFlag(KeyModifiers.Control) && !isCtrlVk)
             parts.Add("Ctrl");
-        if (config.Modifiers.HasFlag(KeyModifiers.Alt))
+        if (config.Modifiers.HasFlag(KeyModifiers.Alt) && !isAltVk)
             parts.Add("Alt");
-        if (config.Modifiers.HasFlag(KeyModifiers.Shift))
+        if (config.Modifiers.HasFlag(KeyModifiers.Shift) && !isShiftVk)
             parts.Add("Shift");
-        if (config.Modifiers.HasFlag(KeyModifiers.Windows))
+        if (config.Modifiers.HasFlag(KeyModifiers.Windows) && !isWinVk)
             parts.Add("Win");
 
-        parts.Add(FormatVirtualKey(config.VirtualKey));
+        if (config.VirtualKey != 0)
+        {
+            parts.Add(FormatVirtualKey(config.VirtualKey));
+        }
 
         return string.Join(" + ", parts);
     }
@@ -39,6 +47,10 @@ public static class KeyFormattingHelper
     {
         return vk switch
         {
+            Win32Constants.VK_CONTROL or 0xA2 or 0xA3 => "Ctrl",
+            Win32Constants.VK_MENU or 0xA4 or 0xA5 => "Alt",
+            Win32Constants.VK_SHIFT or 0xA0 or 0xA1 => "Shift",
+            Win32Constants.VK_LWIN or Win32Constants.VK_RWIN => "Win",
             Win32Constants.VK_SPACE => "Space",
             Win32Constants.VK_ESCAPE => "Esc",
             Win32Constants.VK_RETURN => "Enter",
@@ -56,6 +68,7 @@ public static class KeyFormattingHelper
             Win32Constants.VK_SNAPSHOT => "PrtScn",
             Win32Constants.VK_INSERT => "Insert",
             Win32Constants.VK_DELETE => "Delete",
+            Win32Constants.VK_PAUSE => "Pause",
             Win32Constants.VK_OEM_1 => ";",
             Win32Constants.VK_OEM_PLUS => "=",
             Win32Constants.VK_OEM_COMMA => ",",
@@ -89,6 +102,7 @@ public static class KeyFormattingHelper
 
         KeyModifiers mods = KeyModifiers.None;
         uint vk = 0;
+        string? lastModifierToken = null;
 
         for (int i = 0; i < tokens.Length; i++)
         {
@@ -98,21 +112,49 @@ public static class KeyFormattingHelper
                 case "ctrl":
                 case "control":
                     mods |= KeyModifiers.Control;
+                    lastModifierToken = "ctrl";
                     break;
                 case "alt":
                 case "menu":
                     mods |= KeyModifiers.Alt;
+                    lastModifierToken = "alt";
                     break;
                 case "shift":
                     mods |= KeyModifiers.Shift;
+                    lastModifierToken = "shift";
                     break;
                 case "win":
                 case "windows":
                 case "meta":
                     mods |= KeyModifiers.Windows;
+                    lastModifierToken = "win";
                     break;
                 default:
                     vk = ParseVirtualKey(token);
+                    break;
+            }
+        }
+
+        // If vk was not found, but we have multiple modifiers (e.g. "Ctrl + Alt" or "Ctrl + Shift")
+        if (vk == 0 && lastModifierToken != null)
+        {
+            switch (lastModifierToken)
+            {
+                case "alt":
+                    vk = Win32Constants.VK_MENU;
+                    mods &= ~KeyModifiers.Alt;
+                    break;
+                case "shift":
+                    vk = Win32Constants.VK_SHIFT;
+                    mods &= ~KeyModifiers.Shift;
+                    break;
+                case "win":
+                    vk = Win32Constants.VK_LWIN;
+                    mods &= ~KeyModifiers.Windows;
+                    break;
+                case "ctrl":
+                    vk = Win32Constants.VK_CONTROL;
+                    mods &= ~KeyModifiers.Control;
                     break;
             }
         }

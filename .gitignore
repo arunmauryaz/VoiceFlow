@@ -37,3 +37,6 @@ $RECYCLE.BIN/
 *.temp
 *.dmp
 *.crash
+
+## Downloaded installers / tools (not source code)
+innosetup.exe

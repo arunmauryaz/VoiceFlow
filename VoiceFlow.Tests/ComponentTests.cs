@@ -348,7 +348,7 @@ public class ComponentTests
     [Fact]
     public void Navigation_SwitchSections_UpdatesSelectionFlags()
     {
-        var settings = new MockSettingsService();
+        var settings = new MockSettingsService { StoredApiKey = "test_key" };
         var audioRecorder = new AudioRecorder();
         var provider = new GeminiTranscriptionProvider(settings);
         var processor = new GeminiTextProcessor(settings);

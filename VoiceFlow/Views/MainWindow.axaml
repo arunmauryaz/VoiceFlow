@@ -4,7 +4,7 @@
         xmlns:views="using:VoiceFlow.Views"
         x:Class="VoiceFlow.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/app-icon.ico"
+        Icon="avares://VoiceFlow/Assets/app-icon.ico"
         Title="VoiceFlow — Voice Typing"
         Width="1000" Height="680"
         MinWidth="850" MinHeight="580"
@@ -28,10 +28,10 @@
                             Spacing="10"
                             Margin="24,26,20,24"
                             VerticalAlignment="Center">
-                    <PathIcon Data="{StaticResource IconWaveform}"
-                              Width="18" Height="18"
-                              Foreground="{StaticResource TextPrimaryBrush}"
-                              VerticalAlignment="Center" />
+                    <Border Width="28" Height="28" CornerRadius="6" ClipToBounds="True">
+                        <Image Source="avares://VoiceFlow/Assets/logo.png"
+                               Width="28" Height="28" />
+                    </Border>
                     <TextBlock Text="VoiceFlow"
                                FontSize="19"
                                FontWeight="Bold"

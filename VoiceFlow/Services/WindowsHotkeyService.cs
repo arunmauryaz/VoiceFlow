@@ -17,6 +17,8 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     private bool _isHotkeyHeld;
     private bool _isToggledOn;
     private bool _isRecordingShortcut;
+    private uint _lastPressedModifierVk;
+    private KeyModifiers _recordedModifiers;
     private bool _isDisposed;
 
     public bool IsRegistered => _hookId != IntPtr.Zero;
@@ -39,6 +41,8 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     public void StartRecordingShortcut()
     {
         _isRecordingShortcut = true;
+        _lastPressedModifierVk = 0;
+        _recordedModifiers = KeyModifiers.None;
         if (_hookId == IntPtr.Zero)
         {
             RegisterHotkey(_config, _mode);
@@ -48,6 +52,8 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     public void StopRecordingShortcut()
     {
         _isRecordingShortcut = false;
+        _lastPressedModifierVk = 0;
+        _recordedModifiers = KeyModifiers.None;
     }
 
     public bool RegisterHotkey(HotkeyConfig config, HotkeyActivationMode mode)
@@ -126,13 +132,16 @@ public class WindowsHotkeyService : IGlobalHotkeyService
 
                     if (IsModifierKey(vk))
                     {
+                        _lastPressedModifierVk = vk;
+                        _recordedModifiers = currentMods;
+
                         string preview = Helpers.KeyFormattingHelper.FormatModifiers(currentMods);
                         if (!string.IsNullOrEmpty(preview)) preview += " + ...";
                         ShortcutRecordingPreview?.Invoke(this, preview);
                         return (IntPtr)1;
                     }
 
-                    // Complete key combination captured!
+                    // Complete key combination captured (e.g. F6, Ctrl+Space, Alt+F8)!
                     var recorded = new HotkeyConfig(currentMods, vk);
                     StopRecordingShortcut();
                     ShortcutRecorded?.Invoke(this, recorded);
@@ -140,6 +149,29 @@ public class WindowsHotkeyService : IGlobalHotkeyService
                 }
                 else if (isKeyUp)
                 {
+                    // Check if a multi-modifier combo was pressed (e.g. user pressed Ctrl, then Alt, then released)
+                    int modCount = 0;
+                    if (_recordedModifiers.HasFlag(KeyModifiers.Control)) modCount++;
+                    if (_recordedModifiers.HasFlag(KeyModifiers.Alt)) modCount++;
+                    if (_recordedModifiers.HasFlag(KeyModifiers.Shift)) modCount++;
+                    if (_recordedModifiers.HasFlag(KeyModifiers.Windows)) modCount++;
+
+                    if (modCount >= 2 && _lastPressedModifierVk != 0)
+                    {
+                        KeyModifiers remainingMods = _recordedModifiers;
+                        if (_lastPressedModifierVk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3)
+                            remainingMods &= ~KeyModifiers.Control;
+                        else if (_lastPressedModifierVk is Win32Constants.VK_MENU or 0xA4 or 0xA5)
+                            remainingMods &= ~KeyModifiers.Alt;
+                        else if (_lastPressedModifierVk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1)
+                            remainingMods &= ~KeyModifiers.Shift;
+                        else if (_lastPressedModifierVk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN)
+                            remainingMods &= ~KeyModifiers.Windows;
+
+                        var recorded = new HotkeyConfig(remainingMods, _lastPressedModifierVk);
+                        StopRecordingShortcut();
+                        ShortcutRecorded?.Invoke(this, recorded);
+                    }
                     return (IntPtr)1;
                 }
             }

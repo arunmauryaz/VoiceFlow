@@ -29,6 +29,28 @@
                            Foreground="{StaticResource TextSecondaryBrush}" />
             </StackPanel>
 
+            <!-- API Key Missing Alert Banner -->
+            <Border Background="#FEF3C7"
+                    BorderBrush="#F59E0B"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="16,12"
+                    IsVisible="{Binding !HasSavedApiKey}">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <TextBlock Grid.Column="0" Text="⚠️" FontSize="16" VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="Gemini API Key Required" FontWeight="SemiBold" FontSize="13.5" Foreground="#92400E" />
+                        <TextBlock Text="To enable voice dictation, please configure your Google Gemini API key." FontSize="12" Foreground="#B45309" />
+                    </StackPanel>
+                    <Button Grid.Column="2"
+                            Classes="secondary"
+                            Content="Configure in Settings →"
+                            Command="{Binding NavigateToCommand}"
+                            CommandParameter="Settings"
+                            VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
             <!-- TOP 3 SUMMARY CARDS -->
             <Grid ColumnDefinitions="*,16,*,16,*">
                 <!-- Card 1: Shortcut -->

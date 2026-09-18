@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -486,6 +487,13 @@ public partial class MainWindowViewModel : ViewModelBase
             ConnectionStatusMessage = "✓ Connected";
             ConnectionStatusColor = "#10B981";
         }
+        else
+        {
+            // First-run clean install: prompt user to enter their API key
+            CurrentSection = AppSection.Settings;
+            ConnectionStatusMessage = "Welcome to VoiceFlow! Please enter your Google Gemini API key below to activate voice typing.";
+            ConnectionStatusColor = "#F59E0B";
+        }
 
         string model = !string.IsNullOrWhiteSpace(s.GeminiModel) ? s.GeminiModel : "gemini-3.5-transcribe";
         if (!AvailableModels.Contains(model))
@@ -832,8 +840,25 @@ public partial class MainWindowViewModel : ViewModelBase
         _settingsService.SaveApiKey(string.Empty);
         HasSavedApiKey = false;
         SavedKeyPreviewText = string.Empty;
-        ConnectionStatusMessage = "API key cleared.";
-        ConnectionStatusColor = "#A1A1AA";
+        ConnectionStatusMessage = "API key cleared. Enter a new key to connect.";
+        ConnectionStatusColor = "#F59E0B";
+    }
+
+    [RelayCommand]
+    private void OpenAiStudio()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://aistudio.google.com/apikey",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Failed to open AI Studio in browser.", ex);
+        }
     }
 
     [RelayCommand]
@@ -925,10 +950,16 @@ public partial class MainWindowViewModel : ViewModelBase
             bool hasModifier = recorded.Modifiers != KeyModifiers.None;
             bool isFunctionKey = recorded.VirtualKey >= Win32Constants.VK_F1 && recorded.VirtualKey <= Win32Constants.VK_F12;
             bool isSpecialKey = recorded.VirtualKey is Win32Constants.VK_SNAPSHOT or Win32Constants.VK_PAUSE;
+            bool isModifierKey = recorded.VirtualKey is Win32Constants.VK_CONTROL or 0xA2 or 0xA3
+                or Win32Constants.VK_MENU or 0xA4 or 0xA5
+                or Win32Constants.VK_SHIFT or 0xA0 or 0xA1
+                or Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
 
-            if (!hasModifier && !isFunctionKey && !isSpecialKey)
+            bool isValid = hasModifier || isFunctionKey || isSpecialKey || isModifierKey;
+
+            if (!isValid)
             {
-                ShortcutStatusFeedback = "✕ Please press a Function key (F1–F12) or a combination with Ctrl/Alt/Shift/Win.";
+                ShortcutStatusFeedback = "✕ Please press a Function key (e.g. F6) or a combination with Ctrl/Alt/Shift/Win.";
                 ShortcutStatusColor = "#E11D48";
                 return;
             }

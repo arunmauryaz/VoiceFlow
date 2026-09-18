@@ -184,7 +184,32 @@
                         <TextBlock Text="{Binding ConnectionStatusMessage}"
                                    FontSize="12"
                                    Foreground="{Binding ConnectionStatusColor}"
-                                   IsVisible="{Binding ConnectionStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                   IsVisible="{Binding ConnectionStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                   TextWrapping="Wrap" />
+
+                        <!-- Quick Actions: Get API Key & Clear Key -->
+                        <StackPanel Orientation="Horizontal" Spacing="14" HorizontalAlignment="Right" Margin="0,2,0,0">
+                            <Button Classes="ghost"
+                                    Padding="0"
+                                    Command="{Binding OpenAiStudioCommand}"
+                                    ToolTip.Tip="Open Google AI Studio in your browser to get a free Gemini API key">
+                                <TextBlock Text="Get Free API Key ↗"
+                                           FontSize="12"
+                                           Foreground="{StaticResource BrandGradientEnd}"
+                                           TextDecorations="Underline" />
+                            </Button>
+                            <Border Width="1" Height="10" Background="{StaticResource BorderSubtleBrush}" VerticalAlignment="Center"
+                                    IsVisible="{Binding HasSavedApiKey}" />
+                            <Button Classes="ghost"
+                                    Padding="0"
+                                    Command="{Binding ClearApiKeyCommand}"
+                                    IsVisible="{Binding HasSavedApiKey}"
+                                    ToolTip.Tip="Remove your saved API key from this computer">
+                                <TextBlock Text="Clear Key"
+                                           FontSize="12"
+                                           Foreground="{StaticResource RecordingDotBrush}" />
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </StackPanel>
@@ -192,32 +217,57 @@
             <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
 
             <!-- 4. SHORTCUT SECTION -->
-            <StackPanel Spacing="18">
+            <StackPanel Spacing="16">
                 <TextBlock Text="SHORTCUT" Classes="sectionHeader" />
 
-                <!-- Comprehensive Shortcut Card -->
+                <!-- Clean Shortcut Configuration Card -->
                 <Border Classes="card" Padding="20,18">
-                    <StackPanel Spacing="16">
-                        <!-- Top Row: Active Shortcut & Interactive Action Buttons -->
+                    <StackPanel Spacing="14">
+                        <!-- Top Row: Title, Description & Reset Button -->
                         <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center" Margin="0,0,16,0">
-                                <TextBlock Text="Active shortcut" Classes="settingTitle" />
-                                <TextBlock Text="Click 'Record Key' or choose any option below to set your shortcut." Classes="settingDesc" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,16,0">
+                                <TextBlock Text="Voice Typing Shortcut" Classes="settingTitle" />
+                                <TextBlock Text="Click the bar below, then press your desired key or combination on your physical keyboard." Classes="settingDesc" TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                <!-- Clickable Keycap Display / Record Button -->
-                                <Button Classes="ghost"
-                                        Padding="0"
-                                        Command="{Binding StartRecordingShortcutCommand}"
-                                        IsVisible="{Binding !IsRecordingShortcut}"
-                                        ToolTip.Tip="Click to record any custom shortcut on your physical keyboard">
-                                    <Border Background="{StaticResource SurfaceBrush}"
-                                            BorderBrush="{StaticResource BorderStrongBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="8"
-                                            Padding="12,7">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Button Grid.Column="1"
+                                    Classes="secondary"
+                                    Content="Reset Default"
+                                    ToolTip.Tip="Reset to default (Ctrl + Space)"
+                                    Command="{Binding ResetDefaultShortcutCommand}"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+
+                        <!-- Interactive Shortcut Input Bar (Click to Record) -->
+                        <Panel>
+                            <!-- Normal State: Sleek Clickable Text Bar showing active shortcut -->
+                            <Button Classes="ghost"
+                                    Padding="0"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Command="{Binding StartRecordingShortcutCommand}"
+                                    IsVisible="{Binding !IsRecordingShortcut}"
+                                    Cursor="Hand"
+                                    ToolTip.Tip="Click here to change shortcut (e.g. press F6 or Ctrl + Alt)">
+                                <Border Background="#16161A"
+                                        BorderBrush="{StaticResource BorderStrongBrush}"
+                                        BorderThickness="1.5"
+                                        CornerRadius="8"
+                                        Padding="14,10"
+                                        MinHeight="48">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <!-- Left: Keyboard Icon -->
+                                        <TextBlock Grid.Column="0"
+                                                   Text="⌨️"
+                                                   FontSize="16"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0" />
+
+                                        <!-- Center: Formatted Keycaps -->
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    Spacing="6"
+                                                    VerticalAlignment="Center">
                                             <Border Classes="keycap"
                                                     IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                                                 <TextBlock Text="{Binding ShortcutModifierKeyText}" Classes="keycap" />
@@ -230,176 +280,71 @@
                                             <Border Classes="keycap">
                                                 <TextBlock Text="{Binding ShortcutMainKeyText}" Classes="keycap" />
                                             </Border>
-                                            <Border Width="1" Height="14" Background="{StaticResource BorderSubtleBrush}" Margin="6,0" />
-                                            <TextBlock Text="🎙️ Record Key" FontSize="12" Foreground="{StaticResource BrandGradientEnd}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                         </StackPanel>
-                                    </Border>
-                                </Button>
 
-                                <!-- Live Recording State Box -->
-                                <Border Background="#18181B"
-                                        BorderBrush="#38BDF8"
-                                        BorderThickness="1.5"
-                                        CornerRadius="8"
-                                        Padding="12,7"
-                                        IsVisible="{Binding IsRecordingShortcut}"
-                                        VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                        <Border Width="8" Height="8" CornerRadius="4" Background="#38BDF8" VerticalAlignment="Center" />
+                                        <!-- Right: Interactive Cue -->
+                                        <Border Grid.Column="2"
+                                                Background="{StaticResource SurfaceHoverBrush}"
+                                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Padding="10,5"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="Click to change"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       FontWeight="Medium" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Button>
+
+                            <!-- Live Recording State: Glowing Bar listening for keypresses -->
+                            <Border Background="#0F172A"
+                                    BorderBrush="#38BDF8"
+                                    BorderThickness="1.5"
+                                    CornerRadius="8"
+                                    Padding="14,10"
+                                    MinHeight="48"
+                                    IsVisible="{Binding IsRecordingShortcut}">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <!-- Left: Pulsing Recording Indicator -->
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,12,0">
+                                        <Border Width="10" Height="10" CornerRadius="5" Background="#E11D48" VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <!-- Center: Live Recording Text / Keys Held -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding ShortcutRecordingPrompt}"
-                                                   FontSize="13"
+                                                   FontSize="13.5"
                                                    FontWeight="SemiBold"
                                                    Foreground="#38BDF8"
                                                    VerticalAlignment="Center" />
-                                        <Button Classes="ghost"
-                                                Content="Cancel (Esc)"
-                                                FontSize="11.5"
-                                                Foreground="#A1A1AA"
-                                                Padding="6,2"
-                                                Command="{Binding CancelRecordingShortcutCommand}" />
                                     </StackPanel>
-                                </Border>
 
-                                <!-- Reset to Default Button -->
-                                <Button Classes="secondary"
-                                        Content="Default"
-                                        ToolTip.Tip="Reset to default (Ctrl + Space)"
-                                        Command="{Binding ResetDefaultShortcutCommand}" />
-                            </StackPanel>
-                        </Grid>
+                                    <!-- Right: Cancel Recording Button -->
+                                    <Button Grid.Column="2"
+                                            Classes="secondary"
+                                            Padding="10,4"
+                                            Command="{Binding CancelRecordingShortcutCommand}"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="Cancel (Esc)" FontSize="12" Foreground="#A1A1AA" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+                        </Panel>
 
-                        <!-- Live Recording Helper Banner -->
-                        <Border Background="#0F243A"
-                                BorderBrush="#1E40AF"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="12,8"
-                                IsVisible="{Binding IsRecordingShortcut}">
-                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <TextBlock Text="ℹ️" FontSize="12" VerticalAlignment="Center" />
-                                <TextBlock Text="Press ANY single Function key (F1–F12) or any 2–3 key combination (e.g. Ctrl + Space, Win + Alt + V). Press Esc to cancel."
-                                           FontSize="12"
-                                           Foreground="#93C5FD"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Feedback / Validation Message -->
-                        <TextBlock Text="{Binding ShortcutStatusFeedback}"
-                                   FontSize="12"
-                                   Foreground="{Binding ShortcutStatusColor}"
-                                   IsVisible="{Binding ShortcutStatusFeedback, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-
-                        <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
-
-                        <!-- Option A: Single Function Keys (F1 - F12) Quick-Select Bar -->
-                        <StackPanel Spacing="10">
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="SINGLE FUNCTION KEYS (F1 – F12)"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextMutedBrush}"
-                                           LetterSpacing="0.6" />
-                                <TextBlock Text="Click any function key to instantly activate single-key voice typing:"
-                                           FontSize="12"
-                                           Foreground="{StaticResource TextSecondaryBrush}" />
-                            </StackPanel>
-                            <ItemsControl ItemsSource="{Binding PresetFunctionKeys}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="x:String">
-                                        <Button Classes="ghost"
-                                                Padding="0"
-                                                Margin="0,0,8,8"
-                                                ToolTip.Tip="{Binding}"
-                                                Command="{Binding #RootSettings.DataContext.SetPresetShortcutCommand}"
-                                                CommandParameter="{Binding}">
-                                            <Border Background="{StaticResource SurfaceBrush}"
-                                                    BorderBrush="{StaticResource BorderStrongBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="7"
-                                                    Padding="12,7"
-                                                    MinWidth="48">
-                                                <TextBlock Text="{Binding}"
-                                                           FontSize="12"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                                           HorizontalAlignment="Center" />
-                                            </Border>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                        <!-- Instruction Tip & Feedback Message -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Tip: Press any single key (e.g. F6, F8, Pause) or any combination (e.g. Ctrl + Alt, Ctrl + Shift, Win + Space)."
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       IsVisible="{Binding !IsRecordingShortcut}" />
+                            <TextBlock Text="{Binding ShortcutStatusFeedback}"
+                                       FontSize="12"
+                                       Foreground="{Binding ShortcutStatusColor}"
+                                       IsVisible="{Binding ShortcutStatusFeedback, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                         </StackPanel>
-
-                        <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
-
-                        <!-- Option B: Popular 2-3 Key Shortcuts Quick-Select Bar -->
-                        <StackPanel Spacing="10">
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="POPULAR 2–3 KEY SHORTCUTS"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextMutedBrush}"
-                                           LetterSpacing="0.6" />
-                                <TextBlock Text="Click any popular shortcut combo to activate:"
-                                           FontSize="12"
-                                           Foreground="{StaticResource TextSecondaryBrush}" />
-                            </StackPanel>
-                            <ItemsControl ItemsSource="{Binding PresetCombos}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="x:String">
-                                        <Button Classes="ghost"
-                                                Padding="0"
-                                                Margin="0,0,8,8"
-                                                ToolTip.Tip="{Binding}"
-                                                Command="{Binding #RootSettings.DataContext.SetPresetShortcutCommand}"
-                                                CommandParameter="{Binding}">
-                                            <Border Background="{StaticResource SurfaceBrush}"
-                                                    BorderBrush="{StaticResource BorderStrongBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="7"
-                                                    Padding="12,7">
-                                                <TextBlock Text="{Binding}"
-                                                           FontSize="12"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                                           HorizontalAlignment="Center" />
-                                            </Border>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-
-                        <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
-
-                        <!-- Option C: All Presets Dropdown Selector -->
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Text="All preset shortcuts" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}" />
-                                <TextBlock Text="Browse the full list of supported shortcuts or apply a custom choice." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <ComboBox ItemsSource="{Binding PresetShortcuts}"
-                                          SelectedItem="{Binding CurrentShortcutText}"
-                                          Width="180" />
-                                <Button Classes="secondary"
-                                        Content="Apply"
-                                        Command="{Binding SetPresetShortcutCommand}"
-                                        CommandParameter="{Binding CurrentShortcutText}" />
-                            </StackPanel>
-                        </Grid>
                     </StackPanel>
                 </Border>
 

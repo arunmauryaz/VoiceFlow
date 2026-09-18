@@ -25,14 +25,12 @@
                     <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
                         <Border Width="50" Height="50"
                                 CornerRadius="12"
+                                ClipToBounds="True"
                                 Background="{StaticResource SubtleBrush}"
                                 BorderBrush="{StaticResource BorderSubtleBrush}"
                                 BorderThickness="1">
-                            <PathIcon Data="{StaticResource IconWaveform}"
-                                      Width="22" Height="22"
-                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center" />
+                            <Image Source="avares://VoiceFlow/Assets/logo.png"
+                                   Width="50" Height="50" />
                         </Border>
 
                         <StackPanel Spacing="2" VerticalAlignment="Center">
