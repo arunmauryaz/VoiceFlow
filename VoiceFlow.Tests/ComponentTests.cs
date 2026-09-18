@@ -136,4 +136,35 @@ public class ComponentTests
         var winAltSpace = new HotkeyConfig(KeyModifiers.Windows | KeyModifiers.Alt, Win32Constants.VK_SPACE);
         Assert.Equal("Alt + Win + Space", KeyFormattingHelper.FormatHotkey(winAltSpace));
     }
+
+    [Fact]
+    public void TestSpeech_InitialState_IsReady()
+    {
+        var settings = new MockSettingsService();
+        var audioRecorder = new AudioRecorder();
+        var provider = new GeminiTranscriptionProvider(settings);
+        var processor = new GeminiTextProcessor(settings);
+        var hotkey = new WindowsHotkeyService();
+        var clipboard = new WindowsClipboardService();
+        var startup = new WindowsStartupService();
+        var overlay = new RecordingOverlayViewModel();
+        var textInjection = new WindowsTextInjectionService(clipboard);
+        var stateManager = new AppStateManager(settings, audioRecorder, provider, processor, hotkey, textInjection, clipboard, overlay);
+
+        var vm = new MainWindowViewModel(
+            settings,
+            audioRecorder,
+            provider,
+            processor,
+            hotkey,
+            clipboard,
+            startup,
+            stateManager);
+
+        Assert.False(vm.IsRecordingTestSpeech);
+        Assert.False(vm.IsTranscribingTestSpeech);
+        Assert.False(vm.HasTestResult);
+        Assert.Equal(string.Empty, vm.TestTranscriptionResult);
+        Assert.Contains("Start Speaking", vm.TestSpeechStatus);
+    }
 }

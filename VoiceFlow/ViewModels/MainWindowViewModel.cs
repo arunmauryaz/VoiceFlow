@@ -20,9 +20,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ISettingsService _settingsService;
     private readonly IAudioRecorder _audioRecorder;
     private readonly ITranscriptionProvider _transcriptionProvider;
+    private readonly IAITextProcessor _aiTextProcessor;
     private readonly IGlobalHotkeyService _hotkeyService;
+    private readonly IClipboardService _clipboardService;
     private readonly IStartupService _startupService;
     private readonly AppStateManager _appStateManager;
+    private DispatcherTimer? _testSpeechTimer;
 
     // --- Status Dashboard ---
     [ObservableProperty]
@@ -39,6 +42,31 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _currentModelText = "gemini-2.5-flash";
+
+    // --- Interactive Voice Testing Playground ---
+    [ObservableProperty]
+    private bool _isRecordingTestSpeech;
+
+    [ObservableProperty]
+    private bool _isTranscribingTestSpeech;
+
+    [ObservableProperty]
+    private string _testSpeechDuration = "00:00";
+
+    [ObservableProperty]
+    private float _testAudioLevel;
+
+    [ObservableProperty]
+    private string _testTranscriptionResult = string.Empty;
+
+    [ObservableProperty]
+    private string _testSpeechStatus = "Click 'Start Speaking' to test your microphone and live Gemini transcription.";
+
+    [ObservableProperty]
+    private string _testSpeechLatencyInfo = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasTestResult;
 
     // --- API Setup ---
     [ObservableProperty]
@@ -139,14 +167,18 @@ public partial class MainWindowViewModel : ViewModelBase
         ISettingsService settingsService,
         IAudioRecorder audioRecorder,
         ITranscriptionProvider transcriptionProvider,
+        IAITextProcessor aiTextProcessor,
         IGlobalHotkeyService hotkeyService,
+        IClipboardService clipboardService,
         IStartupService startupService,
         AppStateManager appStateManager)
     {
         _settingsService = settingsService;
         _audioRecorder = audioRecorder;
         _transcriptionProvider = transcriptionProvider;
+        _aiTextProcessor = aiTextProcessor;
         _hotkeyService = hotkeyService;
+        _clipboardService = clipboardService;
         _startupService = startupService;
         _appStateManager = appStateManager;
 
@@ -247,6 +279,10 @@ public partial class MainWindowViewModel : ViewModelBase
         if (IsTestingMic)
         {
             Dispatcher.UIThread.Post(() => MicTestLevel = level);
+        }
+        if (IsRecordingTestSpeech)
+        {
+            Dispatcher.UIThread.Post(() => TestAudioLevel = level);
         }
     }
 
@@ -399,5 +435,117 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ClearHistory()
     {
         RecentHistory.Clear();
+    }
+
+    // --- Interactive Voice Testing Playground Commands ---
+
+    [RelayCommand]
+    private void StartTestSpeech()
+    {
+        if (IsRecordingTestSpeech || IsTranscribingTestSpeech) return;
+
+        try
+        {
+            int dev = SelectedAudioDevice?.DeviceNumber ?? -1;
+            _audioRecorder.StartRecording(dev);
+            IsRecordingTestSpeech = true;
+            HasTestResult = false;
+            TestTranscriptionResult = string.Empty;
+            TestSpeechLatencyInfo = string.Empty;
+            TestSpeechDuration = "00:00";
+            TestAudioLevel = 0f;
+            TestSpeechStatus = "Listening... Speak clearly into your microphone, then click Finish.";
+
+            _testSpeechTimer?.Stop();
+            _testSpeechTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _testSpeechTimer.Tick += (s, e) =>
+            {
+                var d = _audioRecorder.RecordingDuration;
+                TestSpeechDuration = $"{(int)d.TotalMinutes:D2}:{d.Seconds:D2}";
+            };
+            _testSpeechTimer.Start();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Failed to start test speech recording.", ex);
+            TestSpeechStatus = $"Microphone error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task FinishTestSpeechAsync()
+    {
+        if (!IsRecordingTestSpeech) return;
+
+        _testSpeechTimer?.Stop();
+        IsRecordingTestSpeech = false;
+        IsTranscribingTestSpeech = true;
+        TestSpeechStatus = "Transcribing audio with Gemini API...";
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            using var audioStream = await _audioRecorder.StopRecordingAsync();
+            if (audioStream.Length < 1000)
+            {
+                TestSpeechStatus = "Recording too short to transcribe. Please speak a sentence and click Finish.";
+                IsTranscribingTestSpeech = false;
+                return;
+            }
+
+            var result = await _transcriptionProvider.TranscribeAsync(audioStream, "audio/wav");
+            if (!result.Success)
+            {
+                TestSpeechStatus = $"Transcription failed: {result.ErrorMessage}";
+                IsTranscribingTestSpeech = false;
+                return;
+            }
+
+            string text = result.Text;
+
+            if (CleanupEnabled && CleanupMode != TextCleanupMode.Off)
+            {
+                TestSpeechStatus = "Refining transcription with AI cleanup...";
+                text = await _aiTextProcessor.ProcessTextAsync(text, CleanupMode);
+            }
+
+            sw.Stop();
+            TestTranscriptionResult = text;
+            HasTestResult = true;
+            TestSpeechLatencyInfo = $"✓ Transcribed in {sw.ElapsedMilliseconds}ms ({SelectedModel})";
+            TestSpeechStatus = "Transcription complete!";
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Error in test speech transcription.", ex);
+            TestSpeechStatus = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            IsTranscribingTestSpeech = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task CancelTestSpeechAsync()
+    {
+        if (IsRecordingTestSpeech)
+        {
+            _testSpeechTimer?.Stop();
+            IsRecordingTestSpeech = false;
+            await _audioRecorder.StopRecordingAsync();
+            TestSpeechStatus = "Recording cancelled.";
+        }
+    }
+
+    [RelayCommand]
+    private async Task CopyTestTranscriptionAsync()
+    {
+        if (!string.IsNullOrEmpty(TestTranscriptionResult))
+        {
+            await _clipboardService.SetTextAsync(TestTranscriptionResult);
+            TestSpeechStatus = "✓ Copied transcription to clipboard!";
+        }
     }
 }
