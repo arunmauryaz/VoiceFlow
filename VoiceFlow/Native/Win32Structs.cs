@@ -66,3 +66,26 @@ public struct HARDWAREINPUT
     public ushort wParamL;
     public ushort wParamH;
 }
+
+[StructLayout(LayoutKind.Sequential)]
+public struct RECT
+{
+    public int Left;
+    public int Top;
+    public int Right;
+    public int Bottom;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct GUITHREADINFO
+{
+    public int cbSize;
+    public int flags;
+    public IntPtr hwndActive;
+    public IntPtr hwndFocus;
+    public IntPtr hwndCapture;
+    public IntPtr hwndMenuOwner;
+    public IntPtr hwndMoveSize;
+    public IntPtr hwndCaret;
+    public RECT rcCaret;
+}

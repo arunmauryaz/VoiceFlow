@@ -1,0 +1,132 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VoiceFlow.ViewModels"
+             xmlns:models="using:VoiceFlow.Models"
+             x:Class="VoiceFlow.Views.HistoryView"
+             x:DataType="vm:MainWindowViewModel">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="32,28,32,36" Spacing="20">
+
+            <!-- PAGE HEADER -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="History"
+                           FontSize="26"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <TextBlock Text="Your recent transcriptions"
+                           FontSize="13.5"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+            </StackPanel>
+
+            <!-- EMPTY STATE CARD -->
+            <Border Classes="card"
+                    Padding="32,64"
+                    MinHeight="300"
+                    IsVisible="{Binding !HasHistory}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                    <Border Width="52" Height="52"
+                            CornerRadius="26"
+                            Background="{StaticResource SubtleBrush}"
+                            BorderBrush="{StaticResource BorderSubtleBrush}"
+                            BorderThickness="1"
+                            HorizontalAlignment="Center">
+                        <PathIcon Data="{StaticResource IconMic}"
+                                  Width="20" Height="20"
+                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="No transcriptions yet"
+                               FontSize="16.5"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               HorizontalAlignment="Center"
+                               Margin="0,8,0,0" />
+                    <TextBlock Text="Your dictated text will appear here."
+                               FontSize="13.5"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- POPULATED STATE: ITEMS LIST -->
+            <StackPanel Spacing="12" IsVisible="{Binding HasHistory}">
+                <ItemsControl ItemsSource="{Binding RecentHistory}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="models:HistoryItem">
+                            <Border Classes="card" Padding="18,14" Margin="0,0,0,10">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding FormattedTime}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                                            <TextBlock Text="•" FontSize="11" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding WordCount}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                                        </StackPanel>
+
+                                        <!-- Copy Button -->
+                                        <Button Grid.Column="1"
+                                                Classes="secondary"
+                                                Padding="8,4"
+                                                Margin="0,0,6,0"
+                                                Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).CopyHistoryItemCommand}"
+                                                CommandParameter="{Binding .}">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <PathIcon Data="{StaticResource IconCopy}" Width="12" Height="12" Foreground="{StaticResource TextPrimaryBrush}" />
+                                                <TextBlock Text="Copy" FontSize="12" FontWeight="Medium" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <!-- Overflow / Delete Menu -->
+                                        <Button Grid.Column="2"
+                                                Classes="ghost"
+                                                Padding="6,4">
+                                            <PathIcon Data="{StaticResource IconMoreVertical}" Width="13" Height="13" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <Button.Flyout>
+                                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                    <MenuItem Header="Copy Text"
+                                                              Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).CopyHistoryItemCommand}"
+                                                              CommandParameter="{Binding .}">
+                                                        <MenuItem.Icon>
+                                                            <PathIcon Data="{StaticResource IconCopy}" Width="12" Height="12" Foreground="{StaticResource TextPrimaryBrush}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Delete Entry"
+                                                              Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).DeleteHistoryItemCommand}"
+                                                              CommandParameter="{Binding .}">
+                                                        <MenuItem.Icon>
+                                                            <PathIcon Data="{StaticResource IconTrash}" Width="12" Height="12" Foreground="{StaticResource RecordingDotBrush}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Quoted Text -->
+                                    <TextBlock Text="{Binding FinalText, StringFormat='&quot;{0}&quot;'}"
+                                               FontSize="14"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               TextWrapping="Wrap"
+                                               LineHeight="21" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Clear History Button -->
+                <Button Classes="secondary"
+                        HorizontalAlignment="Center"
+                        Margin="0,12,0,0"
+                        Command="{Binding ClearHistoryCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="{StaticResource IconTrash}" Width="13" Height="13" Foreground="{StaticResource TextSecondaryBrush}" />
+                        <TextBlock Text="Clear history" FontSize="13" FontWeight="Medium" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

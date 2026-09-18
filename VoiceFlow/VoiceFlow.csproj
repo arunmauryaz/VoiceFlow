@@ -17,8 +17,15 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Interop.UIAutomationClient" Version="10.19041.0" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>VoiceFlow.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>

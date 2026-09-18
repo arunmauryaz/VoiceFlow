@@ -15,94 +15,221 @@
         Focusable="False">
 
     <Border Margin="12"
-            Padding="18,10"
-            CornerRadius="22"
-            Background="#E61A1A24"
-            BorderBrush="#44FFFFFF"
+            CornerRadius="18"
+            Background="#18181B"
+            BorderBrush="#27272A"
             BorderThickness="1"
-            BoxShadow="0 8 24 0 #66000000">
+            BoxShadow="0 8 28 0 #50000000">
 
-        <StackPanel Orientation="Horizontal"
-                    Spacing="12"
-                    VerticalAlignment="Center">
+        <Panel VerticalAlignment="Center">
 
-            <!-- STATE INDICATORS -->
+            <!-- ============================================== -->
+            <!-- NORMAL HUD MODE (Pill during dictation)        -->
+            <!-- ============================================== -->
+            <Panel Margin="18,9"
+                   IsVisible="{Binding !IsPopupMode}">
 
-            <!-- Recording Dot & Equalizer Bars -->
-            <StackPanel Orientation="Horizontal"
-                        Spacing="8"
-                        VerticalAlignment="Center"
-                        IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AppState.Recording}}">
-                
-                <!-- Glowing Recording Dot -->
-                <Border Width="12" Height="12"
-                        CornerRadius="6"
-                        Background="#FF4D4D"
-                        BoxShadow="0 0 10 2 #99FF4D4D"
-                        VerticalAlignment="Center" />
+                <!-- 1. RECORDING / LISTENING STATE -->
+                <StackPanel Orientation="Horizontal"
+                            Spacing="10"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AppState.Recording}}">
 
-                <!-- Mini Audio Level Waveform Bars -->
-                <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                    <Border Width="3" Height="{Binding LevelBar1}" CornerRadius="1.5" Background="#FF6B6B" VerticalAlignment="Center" />
-                    <Border Width="3" Height="{Binding LevelBar2}" CornerRadius="1.5" Background="#FF4D4D" VerticalAlignment="Center" />
-                    <Border Width="3" Height="{Binding LevelBar3}" CornerRadius="1.5" Background="#FF4D4D" VerticalAlignment="Center" />
-                    <Border Width="3" Height="{Binding LevelBar4}" CornerRadius="1.5" Background="#FF6B6B" VerticalAlignment="Center" />
+                    <!-- Red Recording Dot -->
+                    <Border Width="8" Height="8"
+                            CornerRadius="4"
+                            Background="{StaticResource RecordingDotBrush}"
+                            VerticalAlignment="Center" />
+
+                    <!-- "Listening" Text -->
+                    <TextBlock Text="Listening"
+                               FontSize="13.5"
+                               FontWeight="SemiBold"
+                               Foreground="#FFFFFF"
+                               VerticalAlignment="Center" />
+
+                    <!-- Duration Timer -->
+                    <TextBlock Text="{Binding DurationText}"
+                               FontSize="12.5"
+                               FontWeight="Medium"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               VerticalAlignment="Center" />
+
+                    <!-- 5 Dynamic White Equalizer Waveform Bars -->
+                    <StackPanel Orientation="Horizontal" Spacing="2.5" VerticalAlignment="Center" Margin="4,0,0,0">
+                        <Border Width="2.5" Height="{Binding LevelBar1}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                        <Border Width="2.5" Height="{Binding LevelBar2}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                        <Border Width="2.5" Height="{Binding LevelBar3}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                        <Border Width="2.5" Height="{Binding LevelBar4}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                        <Border Width="2.5" Height="{Binding LevelBar5}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                    </StackPanel>
                 </StackPanel>
+
+                <!-- 2. TRANSCRIBING / CLEANING STATE -->
+                <StackPanel Orientation="Horizontal"
+                            Spacing="9"
+                            VerticalAlignment="Center">
+                    <StackPanel.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                            <Binding Path="State" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="{x:Static models:AppState.Transcribing}" />
+                            <Binding Path="State" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="{x:Static models:AppState.Cleaning}" />
+                        </MultiBinding>
+                    </StackPanel.IsVisible>
+
+                    <PathIcon Data="{StaticResource IconSparkle}"
+                              Width="14" Height="14"
+                              Foreground="#FFFFFF"
+                              VerticalAlignment="Center" />
+
+                    <TextBlock Text="Transcribing..."
+                               FontSize="13.5"
+                               FontWeight="SemiBold"
+                               Foreground="#FFFFFF"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- 3. SUCCESS / INSERTED STATE -->
+                <StackPanel Orientation="Horizontal"
+                            Spacing="9"
+                            VerticalAlignment="Center">
+                    <StackPanel.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                            <Binding Path="State" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="{x:Static models:AppState.Success}" />
+                            <Binding Path="State" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="{x:Static models:AppState.Pasting}" />
+                        </MultiBinding>
+                    </StackPanel.IsVisible>
+
+                    <PathIcon Data="{StaticResource IconCheck}"
+                              Width="14" Height="14"
+                              Foreground="{StaticResource ReadyStatusBrush}"
+                              VerticalAlignment="Center" />
+
+                    <TextBlock Text="Inserted"
+                               FontSize="13.5"
+                               FontWeight="SemiBold"
+                               Foreground="#FFFFFF"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- 4. ERROR STATE -->
+                <StackPanel Orientation="Horizontal"
+                            Spacing="9"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AppState.Error}}">
+
+                    <PathIcon Data="{StaticResource IconWarning}"
+                              Width="14" Height="14"
+                              Foreground="{StaticResource RecordingDotBrush}"
+                              VerticalAlignment="Center" />
+
+                    <TextBlock Text="{Binding StatusText}"
+                               FontSize="13"
+                               FontWeight="Medium"
+                               Foreground="#FFFFFF"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+            </Panel>
+
+            <!-- ============================================================== -->
+            <!-- 5. FLOATING NOTCH TRANSCRIPTION CARD (Wispr Flow style)        -->
+            <!-- Shown when speech ends but no editable text box is focused     -->
+            <!-- ============================================================== -->
+            <StackPanel Margin="16,14"
+                        Spacing="12"
+                        MinWidth="340"
+                        MaxWidth="460"
+                        IsVisible="{Binding IsPopupMode}">
+
+                <!-- Card Header -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <PathIcon Data="{StaticResource IconSparkle}"
+                                  Width="12" Height="12"
+                                  Foreground="#38BDF8"
+                                  VerticalAlignment="Center" />
+                        <TextBlock Text="VOICEFLOW DICTATION"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="#71717A"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="•"
+                                   FontSize="11"
+                                   Foreground="#52525B"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding WordCountText}"
+                                   FontSize="11.5"
+                                   Foreground="#A1A1AA"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Dismiss button -->
+                    <Button Grid.Column="1"
+                            Classes="ghost"
+                            Command="{Binding DismissPopupCommand}"
+                            Padding="5,4"
+                            ToolTip.Tip="Dismiss popup">
+                        <PathIcon Data="{StaticResource IconClose}"
+                                  Width="10" Height="10"
+                                  Foreground="#A1A1AA" />
+                    </Button>
+                </Grid>
+
+                <!-- Card Body: Dictated text -->
+                <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <SelectableTextBlock Text="{Binding TranscriptionText}"
+                                         FontSize="13.5"
+                                         FontWeight="Normal"
+                                         Foreground="#F4F4F5"
+                                         LineHeight="20"
+                                         TextWrapping="Wrap" />
+                </ScrollViewer>
+
+                <!-- Card Footer: Status & Copy action button -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <PathIcon Data="{StaticResource IconCheck}"
+                                  Width="12" Height="12"
+                                  Foreground="#10B981"
+                                  IsVisible="{Binding IsCopied}"
+                                  VerticalAlignment="Center" />
+                        <TextBlock Text="Copied to clipboard"
+                                   FontSize="12"
+                                   Foreground="#10B981"
+                                   IsVisible="{Binding IsCopied}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="No active text field detected"
+                                   FontSize="11.5"
+                                   Foreground="#71717A"
+                                   IsVisible="{Binding !IsCopied}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Copy button -->
+                    <Button Grid.Column="1"
+                            Classes="secondary"
+                            Command="{Binding CopyTranscriptionCommand}"
+                            Padding="12,5"
+                            CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource IconCopy}"
+                                      Width="12" Height="12"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      IsVisible="{Binding !IsCopied}" />
+                            <PathIcon Data="{StaticResource IconCheck}"
+                                      Width="12" Height="12"
+                                      Foreground="#10B981"
+                                      IsVisible="{Binding IsCopied}" />
+                            <TextBlock Text="{Binding CopyButtonText}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
             </StackPanel>
 
-            <!-- Transcribing Indicator -->
-            <Border Width="14" Height="14"
-                    CornerRadius="7"
-                    BorderBrush="#38BDF8"
-                    BorderThickness="2"
-                    VerticalAlignment="Center"
-                    BoxShadow="0 0 8 1 #8838BDF8"
-                    IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AppState.Transcribing}}" />
-
-            <!-- Cleaning Indicator -->
-            <TextBlock Text="✦"
-                       FontSize="15"
-                       Foreground="#A855F7"
-                       VerticalAlignment="Center"
-                       IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AppState.Cleaning}}" />
-
-            <!-- Success Checkmark -->
-            <TextBlock Text="✓"
-                       FontSize="16"
-                       FontWeight="Bold"
-                       Foreground="#22C55E"
-                       VerticalAlignment="Center"
-                       IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AppState.Success}}" />
-
-            <!-- Error Cross -->
-            <TextBlock Text="✕"
-                       FontSize="15"
-                       FontWeight="Bold"
-                       Foreground="#EF4444"
-                       VerticalAlignment="Center"
-                       IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AppState.Error}}" />
-
-            <!-- Status Text -->
-            <TextBlock Text="{Binding StatusText}"
-                       FontSize="13.5"
-                       FontWeight="Medium"
-                       Foreground="#F1F5F9"
-                       VerticalAlignment="Center" />
-
-            <!-- Duration Timer (only during recording) -->
-            <Border Background="#26FFFFFF"
-                    CornerRadius="6"
-                    Padding="6,2"
-                    VerticalAlignment="Center"
-                    IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:AppState.Recording}}">
-                <TextBlock Text="{Binding DurationText}"
-                           FontSize="12"
-                           FontFamily="Consolas, monospace"
-                           FontWeight="SemiBold"
-                           Foreground="#CBD5E1"
-                           VerticalAlignment="Center" />
-            </Border>
-
-        </StackPanel>
+        </Panel>
     </Border>
 </Window>

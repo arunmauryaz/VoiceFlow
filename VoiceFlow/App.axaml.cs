@@ -78,6 +78,16 @@ public partial class App : Application
                 mainWindow.Show();
             }
 
+            if (desktop.Args != null && desktop.Args.Any(a => a.Equals("--settings", StringComparison.OrdinalIgnoreCase)))
+            {
+                mainVm.CurrentSection = AppSection.Settings;
+            }
+
+            if (desktop.Args != null && desktop.Args.Any(a => a.Equals("--test-popup", StringComparison.OrdinalIgnoreCase)))
+            {
+                overlayVm.ShowTranscriptionPopup("The user dictates while on desktop. VoiceFlow detects no active text field and displays this floating card with quick copy.");
+            }
+
             desktop.Exit += OnDesktopExit;
         }
 

@@ -1,0 +1,39 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    name: Build & Verify
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore Dependencies
+      run: dotnet restore VoiceFlow.sln
+
+    - name: Build Solution
+      run: dotnet build VoiceFlow.sln -c Release --no-restore
+
+    - name: Run Tests
+      run: dotnet test VoiceFlow.Tests/VoiceFlow.Tests.csproj -c Release --no-build --verbosity normal
+
+    - name: Publish Windows x64 Executable
+      run: dotnet publish VoiceFlow/VoiceFlow.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./artifacts/win-x64
+
+    - name: Upload Release Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: VoiceFlow-win-x64
+        path: ./artifacts/win-x64/*

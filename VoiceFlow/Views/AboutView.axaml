@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VoiceFlow.ViewModels"
+             x:Class="VoiceFlow.Views.AboutView"
+             x:DataType="vm:MainWindowViewModel">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="32,28,32,36" Spacing="20">
+
+            <!-- PAGE HEADER -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="About VoiceFlow"
+                           FontSize="26"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <TextBlock Text="Fast, private, minimal voice typing for Windows."
+                           FontSize="13.5"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+            </StackPanel>
+
+            <!-- ABOUT CARD -->
+            <Border Classes="card" Padding="28">
+                <StackPanel Spacing="20">
+                    <!-- App Title Row -->
+                    <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                        <Border Width="50" Height="50"
+                                CornerRadius="12"
+                                Background="{StaticResource SubtleBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="1">
+                            <PathIcon Data="{StaticResource IconWaveform}"
+                                      Width="22" Height="22"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                        </Border>
+
+                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="VoiceFlow for Windows"
+                                       FontSize="17"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="Version 1.0.0 (x64 Release)"
+                                       FontSize="13"
+                                       Foreground="{StaticResource TextMutedBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+                    <!-- Technical Specs Table -->
+                    <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,12,Auto,12,Auto,12,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Transcription Engine" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13.5" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Google Gemini 3.5 Transcribe (Cloud STT)" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13.5" FontWeight="Medium" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="UI Framework" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13.5" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="Avalonia UI 11.1 (C# / .NET 8.0 Windows Native)" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13.5" FontWeight="Medium" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Audio Architecture" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13.5" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="NAudio WASAPI Low-Latency Audio Streaming" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13.5" FontWeight="Medium" />
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Global Hotkeys" Foreground="{StaticResource TextSecondaryBrush}" FontSize="13.5" />
+                        <TextBlock Grid.Row="6" Grid.Column="1" Text="Windows User32 Low-Level Keyboard Hook" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13.5" FontWeight="Medium" />
+                    </Grid>
+
+                    <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+                    <!-- Action Buttons -->
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button Classes="secondary"
+                                Content="Documentation"
+                                Command="{Binding OpenDocumentationCommand}" />
+                        <Button Classes="secondary"
+                                Content="Privacy Policy"
+                                Command="{Binding OpenPrivacyPolicyCommand}" />
+                        <Button Classes="secondary"
+                                Content="GitHub Source"
+                                Command="{Binding OpenGitHubCommand}" />
+                        <Button Classes="secondary"
+                                Content="Check for Updates"
+                                Command="{Binding CheckForUpdatesCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -158,27 +158,39 @@ public class AppStateManager : IDisposable
                 LastTranscription = text;
                 TranscriptionCompleted?.Invoke(this, text);
 
-                if (_settingsService.Settings.AutoPaste)
+                bool hasEditableFocus = _textInjectionService.HasFocusedEditableControl(_targetHwnd);
+                AppLogger.LogInfo($"Text target focus evaluation: HasEditableFocus={hasEditableFocus}, AutoPaste={_settingsService.Settings.AutoPaste}");
+
+                if (hasEditableFocus && _settingsService.Settings.AutoPaste)
                 {
                     CurrentState = AppState.Pasting;
                     await _textInjectionService.InjectTextAsync(
                         text,
                         _targetHwnd,
                         _settingsService.Settings.PreserveClipboard);
+
+                    CurrentState = AppState.Success;
+                    if (_settingsService.Settings.ShowOverlay)
+                    {
+                        _overlayViewModel.ShowSuccess("Inserted");
+                    }
+
+                    await Task.Delay(800);
+                    CurrentState = AppState.Ready;
                 }
                 else
                 {
+                    // No editable text box focused: copy text and show floating notch card (Wispr Flow style)
                     await _clipboardService.SetTextAsync(text);
-                }
+                    CurrentState = AppState.Success;
 
-                CurrentState = AppState.Success;
-                if (_settingsService.Settings.ShowOverlay)
-                {
-                    _overlayViewModel.ShowSuccess("Done");
-                }
+                    if (_settingsService.Settings.ShowOverlay)
+                    {
+                        _overlayViewModel.ShowTranscriptionPopup(text);
+                    }
 
-                await Task.Delay(800);
-                CurrentState = AppState.Ready;
+                    CurrentState = AppState.Ready;
+                }
             }
             catch (Exception ex)
             {

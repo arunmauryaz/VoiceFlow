@@ -1,8 +1,38 @@
-bin/
-obj/
-*.user
+## Build and Dependency Directories
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+TestResults/
+
+## Visual Studio & Rider
 .vs/
 .idea/
 *.suo
-voiceflow.log
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.sln.docstates
+*.DotSettings.user
+
+## VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## Sensitive & Runtime Local Data
 credentials.dat
+voiceflow.log*
+*.log
+appsettings.local.json
+
+## OS & Temporary Files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.tmp
+*.temp
+*.dmp
+*.crash

@@ -21,6 +21,15 @@ public partial class RecordingOverlayWindow : Window
         vm.PropertyChanged += OnViewModelPropertyChanged;
     }
 
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == BoundsProperty)
+        {
+            Dispatcher.UIThread.Post(UpdatePosition);
+        }
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(RecordingOverlayViewModel.IsVisible))
@@ -33,6 +42,7 @@ public partial class RecordingOverlayWindow : Window
                     {
                         UpdatePosition();
                         Show();
+                        Dispatcher.UIThread.Post(UpdatePosition, DispatcherPriority.Loaded);
                     }
                     else
                     {
@@ -40,6 +50,10 @@ public partial class RecordingOverlayWindow : Window
                     }
                 }
             });
+        }
+        else if (e.PropertyName == nameof(RecordingOverlayViewModel.IsPopupMode))
+        {
+            Dispatcher.UIThread.Post(UpdatePosition, DispatcherPriority.Loaded);
         }
     }
 

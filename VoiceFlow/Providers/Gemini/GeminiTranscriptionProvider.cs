@@ -65,39 +65,74 @@ public class GeminiTranscriptionProvider : ITranscriptionProvider
             string base64Audio = Convert.ToBase64String(audioBytes);
             string model = !string.IsNullOrWhiteSpace(_settingsService.Settings.GeminiModel)
                 ? _settingsService.Settings.GeminiModel
-                : "gemini-2.5-flash";
+                : "gemini-3.5-transcribe";
 
             string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
 
-            var requestBody = new
+            object requestBody;
+            if (model.Contains("transcribe", StringComparison.OrdinalIgnoreCase))
             {
-                contents = new[]
+                // gemini-3.5-transcribe dedicated audio payload
+                requestBody = new
                 {
-                    new
+                    contents = new[]
                     {
-                        parts = new object[]
+                        new
                         {
-                            new
+                            parts = new object[]
                             {
-                                text = "You are an expert voice-to-text transcription engine. Transcribe the following spoken audio verbatim. Maintain the speaker's exact wording, numbers, and language. Apply appropriate capitalization and punctuation (periods, commas, question marks). Do NOT add any preamble, quotes, timestamps, markdown code fences, or explanations. Output ONLY the transcription."
-                            },
-                            new
-                            {
-                                inline_data = new
+                                new
                                 {
-                                    mime_type = mimeType,
-                                    data = base64Audio
+                                    inline_data = new
+                                    {
+                                        mime_type = mimeType,
+                                        data = base64Audio
+                                    }
                                 }
                             }
                         }
+                    },
+                    generationConfig = new
+                    {
+                        audioTranscriptionConfig = new
+                        {
+                            mode = _settingsService.Settings.CleanupEnabled ? "SMART" : "VERBATIM"
+                        }
                     }
-                },
-                generationConfig = new
+                };
+            }
+            else
+            {
+                requestBody = new
                 {
-                    temperature = 0.0,
-                    maxOutputTokens = 2048
-                }
-            };
+                    contents = new[]
+                    {
+                        new
+                        {
+                            parts = new object[]
+                            {
+                                new
+                                {
+                                    text = "You are an expert voice-to-text transcription engine. Transcribe the following spoken audio verbatim. Maintain the speaker's exact wording, numbers, and language. Apply appropriate capitalization and punctuation (periods, commas, question marks). Do NOT add any preamble, quotes, timestamps, markdown code fences, or explanations. Output ONLY the transcription."
+                                },
+                                new
+                                {
+                                    inline_data = new
+                                    {
+                                        mime_type = mimeType,
+                                        data = base64Audio
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    generationConfig = new
+                    {
+                        temperature = 0.0,
+                        maxOutputTokens = 2048
+                    }
+                };
+            }
 
             string jsonPayload = JsonSerializer.Serialize(requestBody);
             using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
@@ -118,6 +153,7 @@ public class GeminiTranscriptionProvider : ITranscriptionProvider
             string transcript = ExtractTextFromGeminiResponse(responseJson);
             if (string.IsNullOrWhiteSpace(transcript))
             {
+                AppLogger.LogWarning($"Gemini returned no transcript. Raw response: {responseJson}");
                 return TranscriptionResult.Fail("No speech detected in audio.");
             }
 
@@ -150,41 +186,73 @@ public class GeminiTranscriptionProvider : ITranscriptionProvider
 
         string model = !string.IsNullOrWhiteSpace(_settingsService.Settings.GeminiModel)
             ? _settingsService.Settings.GeminiModel
-            : "gemini-2.5-flash";
-
-        string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
-
-        var testPayload = new
-        {
-            contents = new[]
-            {
-                new
-                {
-                    parts = new[]
-                    {
-                        new { text = "Respond with 'OK' to test connection." }
-                    }
-                }
-            }
-        };
+            : "gemini-3.5-transcribe";
 
         var sw = Stopwatch.StartNew();
         try
         {
-            using var content = new StringContent(JsonSerializer.Serialize(testPayload), Encoding.UTF8, "application/json");
-            using var response = await HttpClient.PostAsync(endpoint, content, ct);
-            sw.Stop();
-
-            string body = await response.Content.ReadAsStringAsync(ct);
-
-            if (response.IsSuccessStatusCode)
+            if (model.Contains("transcribe", StringComparison.OrdinalIgnoreCase))
             {
-                return (true, $"✓ Connected successfully ({sw.ElapsedMilliseconds}ms roundtrip)");
+                // For dedicated speech models like gemini-3.5-transcribe, validate via the models endpoint.
+                // gemini-3.5-transcribe requires audio input and will reject text-only ping prompts.
+                string modelEndpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{model}?key={apiKey}";
+                using var response = await HttpClient.GetAsync(modelEndpoint, ct);
+                sw.Stop();
+
+                string body = await response.Content.ReadAsStringAsync(ct);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return (true, $"✓ Connected to {model} successfully ({sw.ElapsedMilliseconds}ms roundtrip)");
+                }
+
+                // If model lookup returned 404, verify if API key itself is valid via models list
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    string listEndpoint = $"https://generativelanguage.googleapis.com/v1beta/models?key={apiKey}";
+                    using var listResp = await HttpClient.GetAsync(listEndpoint, ct);
+                    if (listResp.IsSuccessStatusCode)
+                    {
+                        return (true, $"✓ API key is valid ({sw.ElapsedMilliseconds}ms roundtrip)");
+                    }
+                }
+
+                string msg = ParseErrorMessage(response.StatusCode, body);
+                return (false, $"✕ Connection failed: {msg}");
             }
             else
             {
-                string msg = ParseErrorMessage(response.StatusCode, body);
-                return (false, $"✕ Connection failed: {msg}");
+                string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
+
+                var testPayload = new
+                {
+                    contents = new[]
+                    {
+                        new
+                        {
+                            parts = new[]
+                            {
+                                new { text = "Respond with 'OK' to test connection." }
+                            }
+                        }
+                    }
+                };
+
+                using var content = new StringContent(JsonSerializer.Serialize(testPayload), Encoding.UTF8, "application/json");
+                using var response = await HttpClient.PostAsync(endpoint, content, ct);
+                sw.Stop();
+
+                string body = await response.Content.ReadAsStringAsync(ct);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return (true, $"✓ Connected successfully ({sw.ElapsedMilliseconds}ms roundtrip)");
+                }
+                else
+                {
+                    string msg = ParseErrorMessage(response.StatusCode, body);
+                    return (false, $"✕ Connection failed: {msg}");
+                }
             }
         }
         catch (HttpRequestException ex)
@@ -234,7 +302,7 @@ public class GeminiTranscriptionProvider : ITranscriptionProvider
         };
     }
 
-    private static string ExtractTextFromGeminiResponse(string responseJson)
+    internal static string ExtractTextFromGeminiResponse(string responseJson)
     {
         try
         {
@@ -253,6 +321,26 @@ public class GeminiTranscriptionProvider : ITranscriptionProvider
                         if (part.TryGetProperty("text", out var textEl))
                         {
                             sb.Append(textEl.GetString());
+                        }
+                        else if (part.TryGetProperty("audioTranscription", out var atEl) || 
+                                 part.TryGetProperty("audio_transcription", out atEl))
+                        {
+                            if (atEl.TryGetProperty("text", out var atTextEl))
+                            {
+                                sb.Append(atTextEl.GetString());
+                            }
+                            else if (atEl.TryGetProperty("words", out var wordsEl) && wordsEl.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var w in wordsEl.EnumerateArray())
+                                {
+                                    if (w.TryGetProperty("word", out var wordStr))
+                                    {
+                                        if (sb.Length > 0 && !sb.ToString().EndsWith(' '))
+                                            sb.Append(' ');
+                                        sb.Append(wordStr.GetString());
+                                    }
+                                }
+                            }
                         }
                     }
                     return sb.ToString();

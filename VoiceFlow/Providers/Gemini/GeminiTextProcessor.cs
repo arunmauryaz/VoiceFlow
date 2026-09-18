@@ -46,7 +46,14 @@ public class GeminiTextProcessor : IAITextProcessor
 
         string model = !string.IsNullOrWhiteSpace(_settingsService.Settings.GeminiModel)
             ? _settingsService.Settings.GeminiModel
-            : "gemini-2.5-flash";
+            : "gemini-3.5-flash";
+
+        // Dedicated speech-to-text models like gemini-3.5-transcribe only accept audio.
+        // For text cleanup and formatting prompts, route to gemini-3.5-flash.
+        if (model.Contains("transcribe", StringComparison.OrdinalIgnoreCase))
+        {
+            model = "gemini-3.5-flash";
+        }
 
         string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
 

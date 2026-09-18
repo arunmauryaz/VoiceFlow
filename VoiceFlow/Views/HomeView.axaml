@@ -1,0 +1,286 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VoiceFlow.ViewModels"
+             x:Class="VoiceFlow.Views.HomeView"
+             x:DataType="vm:MainWindowViewModel">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="32,28,32,36" Spacing="20">
+
+            <!-- PAGE HEADER -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="{Binding HomeHeading}"
+                           FontSize="26"
+                           FontWeight="SemiBold">
+                    <TextBlock.Styles>
+                        <Style Selector="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                        </Style>
+                        <Style Selector="TextBlock[Tag=True]">
+                            <Setter Property="Foreground" Value="{StaticResource RecordingDotBrush}" />
+                        </Style>
+                    </TextBlock.Styles>
+                    <TextBlock.Tag>
+                        <Binding Path="IsListening" />
+                    </TextBlock.Tag>
+                </TextBlock>
+                <TextBlock Text="{Binding HomeSubtitle}"
+                           FontSize="13.5"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+            </StackPanel>
+
+            <!-- TOP 3 SUMMARY CARDS -->
+            <Grid ColumnDefinitions="*,16,*,16,*">
+                <!-- Card 1: Shortcut -->
+                <Border Grid.Column="0" Classes="card" Padding="16,14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="ACTIVATION SHORTCUT" Classes="sectionHeader" FontSize="11" />
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Border Classes="keycap"
+                                    IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <TextBlock Text="{Binding ShortcutModifierKeyText}" Classes="keycap" />
+                            </Border>
+                            <TextBlock Text="+"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center"
+                                       FontWeight="SemiBold"
+                                       IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <Border Classes="keycap">
+                                <TextBlock Text="{Binding ShortcutMainKeyText}" Classes="keycap" />
+                            </Border>
+                            <TextBlock Text="{Binding ShortcutModeCaption}"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"
+                                       Margin="2,0,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Card 2: Input Device -->
+                <Border Grid.Column="2" Classes="card" Padding="16,14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="INPUT DEVICE" Classes="sectionHeader" FontSize="11" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource IconMic}" Width="15" Height="15" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding CurrentMicrophoneText}"
+                                       FontSize="13"
+                                       FontWeight="Medium"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Card 3: Engine -->
+                <Border Grid.Column="4" Classes="card" Padding="16,14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="TRANSCRIPTION ENGINE" Classes="sectionHeader" FontSize="11" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource IconSparkle}" Width="15" Height="15" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding CurrentModelText}"
+                                       FontSize="13"
+                                       FontWeight="Medium"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- MAIN HERO DICTATION CARD -->
+            <Panel MinHeight="230">
+                <!-- 1. Ready State Card -->
+                <Border Classes="card"
+                        Padding="32,36"
+                        IsVisible="{Binding !IsListening}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
+                        <!-- Centered Mic Icon Bubble -->
+                        <Border Width="52" Height="52"
+                                CornerRadius="26"
+                                Background="{StaticResource SubtleBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="1"
+                                HorizontalAlignment="Center">
+                            <PathIcon Data="{StaticResource IconMic}"
+                                      Width="20" Height="20"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                        </Border>
+
+                        <TextBlock Text="{Binding DictationInstructionTitle}"
+                                   FontSize="16.5"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,10,0,2" />
+
+                        <TextBlock Text="{Binding DictationInstructionSubtitle}"
+                                   FontSize="13.5"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" />
+
+                        <!-- Interactive Test Button -->
+                        <Button Classes="secondary"
+                                Margin="0,14,0,0"
+                                HorizontalAlignment="Center"
+                                Command="{Binding ToggleHomeRecordingCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="{StaticResource IconWaveform}" Width="14" Height="14" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="Test Microphone" FontWeight="Medium" FontSize="13" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- 2. Recording State Card (Pink bg #FFF1F2, Border #FECDD3) -->
+                <Border Background="{StaticResource RecordingBgBrush}"
+                        BorderBrush="{StaticResource RecordingBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="32,36"
+                        IsVisible="{Binding IsListening}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                        <!-- 5 Live Red Audio Equalizer Bars -->
+                        <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center" Height="42" VerticalAlignment="Center">
+                            <Border Width="4" Height="{Binding HomeWaveBar1}" CornerRadius="2" Background="{StaticResource RecordingDotBrush}" VerticalAlignment="Center" />
+                            <Border Width="4" Height="{Binding HomeWaveBar2}" CornerRadius="2" Background="{StaticResource RecordingDotBrush}" VerticalAlignment="Center" />
+                            <Border Width="4" Height="{Binding HomeWaveBar3}" CornerRadius="2" Background="{StaticResource RecordingDotBrush}" VerticalAlignment="Center" />
+                            <Border Width="4" Height="{Binding HomeWaveBar4}" CornerRadius="2" Background="{StaticResource RecordingDotBrush}" VerticalAlignment="Center" />
+                            <Border Width="4" Height="{Binding HomeWaveBar5}" CornerRadius="2" Background="{StaticResource RecordingDotBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Live Timer -->
+                        <TextBlock Text="{Binding HomeTimerText}"
+                                   FontSize="24"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource RecordingDotBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,4,0,2" />
+
+                        <TextBlock Text="Transcribing in real-time via Gemini Transcribe..."
+                                   FontSize="13"
+                                   Foreground="{StaticResource RecordingDotBrush}"
+                                   Opacity="0.85"
+                                   HorizontalAlignment="Center" />
+
+                        <!-- Finish Button -->
+                        <Button Background="{StaticResource RecordingDotBrush}"
+                                Foreground="White"
+                                CornerRadius="8"
+                                Padding="16,8"
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Center"
+                                Command="{Binding ToggleHomeRecordingCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="⏹" FontSize="12" VerticalAlignment="Center" Foreground="White" />
+                                <TextBlock Text="Finish &amp; Transcribe" FontWeight="SemiBold" FontSize="13" Foreground="White" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </Panel>
+
+            <!-- LAST TRANSCRIPTION CARD -->
+            <Border Classes="card"
+                    IsVisible="{Binding HasLastTranscription}">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBlock Text="LAST TRANSCRIPTION" Classes="sectionHeader" FontSize="11" VerticalAlignment="Center" />
+                            <TextBlock Text="•" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding LastTranscriptionTime}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
+                                Classes="secondary"
+                                Padding="10,5"
+                                Command="{Binding CopyLastTranscriptionCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Data="{StaticResource IconCopy}" Width="13" Height="13" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="Copy" FontSize="12" FontWeight="Medium" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <TextBlock Text="{Binding LastTranscriptionText, StringFormat='&quot;{0}&quot;'}"
+                               FontSize="14"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               TextWrapping="Wrap"
+                               LineHeight="22" />
+                </StackPanel>
+            </Border>
+
+            <!-- DIAGNOSTICS & DEBUG FOOTER ROW -->
+            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,4,0,0">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                            IsVisible="{Binding HasDebugError}">
+                    <PathIcon Data="{StaticResource IconWarning}" Width="14" Height="14" Foreground="{StaticResource RecordingDotBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="Attention: An issue occurred during last test."
+                               Foreground="{StaticResource RecordingDotBrush}"
+                               FontSize="12"
+                               FontWeight="Medium"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Classes="ghost"
+                        Padding="8,5"
+                        Command="{Binding ToggleDebugViewCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="🐞" FontSize="12" VerticalAlignment="Center" />
+                        <TextBlock Text="Debug View" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="2"
+                        Margin="6,0,0,0"
+                        Classes="ghost"
+                        Padding="8,5"
+                        Command="{Binding OpenLogFileCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="📂" FontSize="12" VerticalAlignment="Center" />
+                        <TextBlock Text="Open Log" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <!-- EXPANDABLE DEBUG PANEL -->
+            <Border IsVisible="{Binding IsDebugViewVisible}"
+                    Background="#18181B"
+                    BorderBrush="#27272A"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="16"
+                    Margin="0,4,0,0">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="DEBUG &amp; DIAGNOSTICS REPORT" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Classes="secondary"
+                                Padding="10,5"
+                                Command="{Binding CopyDetailedErrorCommand}">
+                            <TextBlock Text="📋 Copy Report" FontSize="11.5" FontWeight="SemiBold" />
+                        </Button>
+                    </Grid>
+
+                    <TextBox Text="{Binding DetailedErrorSummary}"
+                             IsReadOnly="True"
+                             FontFamily="Consolas, monospace"
+                             FontSize="11.5"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="120"
+                             MaxHeight="240"
+                             Background="#121215"
+                             Foreground="#E4E4E7"
+                             BorderBrush="#27272A" />
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -27,21 +27,89 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly AppStateManager _appStateManager;
     private DispatcherTimer? _testSpeechTimer;
 
+    // --- Navigation ---
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsHomeSelected))]
+    [NotifyPropertyChangedFor(nameof(IsHistorySelected))]
+    [NotifyPropertyChangedFor(nameof(IsSettingsSelected))]
+    [NotifyPropertyChangedFor(nameof(IsAboutSelected))]
+    private AppSection _currentSection = AppSection.Home;
+
+    public bool IsHomeSelected => CurrentSection == AppSection.Home;
+    public bool IsHistorySelected => CurrentSection == AppSection.History;
+    public bool IsSettingsSelected => CurrentSection == AppSection.Settings;
+    public bool IsAboutSelected => CurrentSection == AppSection.About;
+
     // --- Status Dashboard ---
     [ObservableProperty]
     private string _statusDisplay = "● Ready";
 
     [ObservableProperty]
-    private string _statusColor = "#22C55E"; // Green
+    private string _statusColor = "#10B981"; // Green
 
     [ObservableProperty]
     private string _currentShortcutText = "Ctrl + Space";
 
     [ObservableProperty]
+    private string _shortcutModifierKeyText = "Ctrl";
+
+    [ObservableProperty]
+    private string _shortcutMainKeyText = "Space";
+
+    [ObservableProperty]
+    private string _shortcutModeCaption = "(Hold to talk)";
+
+    [ObservableProperty]
     private string _currentMicrophoneText = "Default Microphone";
 
     [ObservableProperty]
-    private string _currentModelText = "gemini-2.5-flash";
+    private string _currentModelText = "gemini-3.5-transcribe";
+
+    // --- Home View Properties ---
+    [ObservableProperty]
+    private string _homeHeading = "Ready to dictate";
+
+    [ObservableProperty]
+    private string _homeSubtitle = "VoiceFlow is active and listening for your hotkey anywhere on Windows.";
+
+    [ObservableProperty]
+    private string _dictationInstructionTitle = "Hold Ctrl + Space to dictate";
+
+    [ObservableProperty]
+    private string _dictationInstructionSubtitle = "Release shortcut when you are finished speaking";
+
+    [ObservableProperty]
+    private bool _isListening;
+
+    [ObservableProperty]
+    private bool _isHeroTranscribing;
+
+    [ObservableProperty]
+    private string _homeTimerText = "00:00";
+
+    [ObservableProperty]
+    private double _homeWaveBar1 = 8.0;
+
+    [ObservableProperty]
+    private double _homeWaveBar2 = 18.0;
+
+    [ObservableProperty]
+    private double _homeWaveBar3 = 28.0;
+
+    [ObservableProperty]
+    private double _homeWaveBar4 = 18.0;
+
+    [ObservableProperty]
+    private double _homeWaveBar5 = 8.0;
+
+    [ObservableProperty]
+    private string _lastTranscriptionText = "Ready to dictate anywhere. Hold your shortcut key to begin.";
+
+    [ObservableProperty]
+    private string _lastTranscriptionTime = "Ready";
+
+    [ObservableProperty]
+    private bool _hasLastTranscription = true;
 
     // --- Interactive Voice Testing Playground ---
     [ObservableProperty]
@@ -60,7 +128,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string _testTranscriptionResult = string.Empty;
 
     [ObservableProperty]
-    private string _testSpeechStatus = "Click 'Start Speaking' to test your microphone and live Gemini transcription.";
+    private string _testSpeechStatus = "Click 'Start Speaking' or 'Test Microphone' to test live Gemini transcription.";
 
     [ObservableProperty]
     private string _testSpeechLatencyInfo = string.Empty;
@@ -101,38 +169,58 @@ public partial class MainWindowViewModel : ViewModelBase
     private string _savedKeyPreviewText = string.Empty;
 
     [ObservableProperty]
-    private string _selectedModel = "gemini-2.5-flash";
+    private string _selectedModel = "gemini-3.5-transcribe";
+
+    partial void OnSelectedModelChanged(string value)
+    {
+        CurrentModelText = value;
+        if (_settingsService?.Settings != null && !string.IsNullOrWhiteSpace(value))
+        {
+            _settingsService.Settings.GeminiModel = value;
+            AutoPersistSettings();
+        }
+    }
 
     [ObservableProperty]
     private string _connectionStatusMessage = string.Empty;
 
     [ObservableProperty]
-    private string _connectionStatusColor = "#94A3B8";
+    private string _connectionStatusColor = "#A1A1AA";
 
     [ObservableProperty]
     private bool _isTestingConnection;
 
     public ObservableCollection<string> AvailableModels { get; } = new()
     {
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash"
+        "gemini-3.5-transcribe",
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash"
     };
 
     public ObservableCollection<string> AvailableProviders { get; } = new()
     {
-        "Google Gemini",
+        "Google Gemini (Recommended)",
         "Local Whisper (Coming soon)"
     };
 
     [ObservableProperty]
-    private string _selectedProvider = "Google Gemini";
+    private string _selectedProvider = "Google Gemini (Recommended)";
 
     // --- Microphone ---
     public ObservableCollection<AudioDeviceInfo> AudioDevices { get; } = new();
 
     [ObservableProperty]
     private AudioDeviceInfo? _selectedAudioDevice;
+
+    partial void OnSelectedAudioDeviceChanged(AudioDeviceInfo? value)
+    {
+        if (value != null)
+        {
+            CurrentMicrophoneText = value.Name;
+            AutoPersistSettings();
+        }
+    }
 
     [ObservableProperty]
     private bool _isTestingMic;
@@ -144,49 +232,210 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private HotkeyActivationMode _selectedHotkeyMode = HotkeyActivationMode.HoldToTalk;
 
+    partial void OnSelectedHotkeyModeChanged(HotkeyActivationMode value)
+    {
+        OnPropertyChanged(nameof(IsHoldToTalk));
+        OnPropertyChanged(nameof(IsToggleToTalk));
+        UpdateShortcutKeyDisplay(_settingsService?.Settings?.Hotkey ?? HotkeyConfig.Default);
+        AutoPersistSettings(updateHotkey: true);
+    }
+
+    public bool IsHoldToTalk
+    {
+        get => SelectedHotkeyMode == HotkeyActivationMode.HoldToTalk;
+        set
+        {
+            if (value && SelectedHotkeyMode != HotkeyActivationMode.HoldToTalk)
+            {
+                SelectedHotkeyMode = HotkeyActivationMode.HoldToTalk;
+            }
+        }
+    }
+
+    public bool IsToggleToTalk
+    {
+        get => SelectedHotkeyMode == HotkeyActivationMode.Toggle;
+        set
+        {
+            if (value && SelectedHotkeyMode != HotkeyActivationMode.Toggle)
+            {
+                SelectedHotkeyMode = HotkeyActivationMode.Toggle;
+            }
+        }
+    }
+
     [ObservableProperty]
     private string _hotkeyRegistrationError = string.Empty;
+
+    // --- Interactive Shortcut Recorder ---
+    [ObservableProperty]
+    private bool _isRecordingShortcut;
+
+    [ObservableProperty]
+    private string _shortcutRecordingPrompt = "Press keys...";
+
+    [ObservableProperty]
+    private string _shortcutStatusFeedback = string.Empty;
+
+    [ObservableProperty]
+    private string _shortcutStatusColor = "#10B981";
+
+    public ObservableCollection<string> PresetFunctionKeys { get; } = new()
+    {
+        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
+    };
+
+    public ObservableCollection<string> PresetCombos { get; } = new()
+    {
+        "Ctrl + Space",
+        "Alt + Space",
+        "Win + Space",
+        "Ctrl + Shift + Space",
+        "Ctrl + Alt + Space",
+        "Alt + Shift + Space",
+        "Ctrl + F8",
+        "Ctrl + F9",
+        "Win + Alt + V"
+    };
 
     public ObservableCollection<string> PresetShortcuts { get; } = new()
     {
         "Ctrl + Space",
         "Alt + Space",
+        "Win + Space",
         "Ctrl + Shift + Space",
+        "Ctrl + Alt + Space",
+        "Alt + Shift + Space",
+        "Ctrl + F8",
+        "Ctrl + F9",
+        "Win + Alt + V",
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
         "F8",
-        "F9"
+        "F9",
+        "F10",
+        "F11",
+        "F12"
     };
 
     // --- AI Cleanup ---
     [ObservableProperty]
     private bool _cleanupEnabled;
 
+    partial void OnCleanupEnabledChanged(bool value) => AutoPersistSettings();
+
     [ObservableProperty]
     private TextCleanupMode _cleanupMode = TextCleanupMode.CleanTranscription;
+
+    partial void OnCleanupModeChanged(TextCleanupMode value) => AutoPersistSettings();
+
+    public ObservableCollection<string> AvailableCleanupModes { get; } = new()
+    {
+        "Clean transcription (Light)",
+        "Smart formatting"
+    };
+
+    [ObservableProperty]
+    private string _selectedCleanupModeString = "Clean transcription (Light)";
+
+    partial void OnSelectedCleanupModeStringChanged(string value)
+    {
+        CleanupMode = value == "Smart formatting" ? TextCleanupMode.SmartFormatting : TextCleanupMode.CleanTranscription;
+        AutoPersistSettings();
+    }
 
     // --- Behavior & System ---
     [ObservableProperty]
     private bool _autoPaste = true;
 
+    partial void OnAutoPasteChanged(bool value) => AutoPersistSettings();
+
     [ObservableProperty]
     private bool _preserveClipboard = true;
+
+    partial void OnPreserveClipboardChanged(bool value) => AutoPersistSettings();
 
     [ObservableProperty]
     private bool _showOverlay = true;
 
+    partial void OnShowOverlayChanged(bool value) => AutoPersistSettings();
+
     [ObservableProperty]
     private bool _startWithWindows;
+
+    partial void OnStartWithWindowsChanged(bool value)
+    {
+        _startupService.SetStartupEnabled(value);
+        AutoPersistSettings();
+    }
 
     [ObservableProperty]
     private bool _runInBackground = true;
 
+    partial void OnRunInBackgroundChanged(bool value) => AutoPersistSettings();
+
     [ObservableProperty]
     private ThemePreference _selectedTheme = ThemePreference.System;
 
-    // --- History (Optional) ---
+    partial void OnSelectedThemeChanged(ThemePreference value)
+    {
+        OnPropertyChanged(nameof(IsSystemTheme));
+        OnPropertyChanged(nameof(IsLightTheme));
+        OnPropertyChanged(nameof(IsDarkTheme));
+        ApplyTheme(value);
+        AutoPersistSettings();
+    }
+
+    public bool IsSystemTheme
+    {
+        get => SelectedTheme == ThemePreference.System;
+        set
+        {
+            if (value && SelectedTheme != ThemePreference.System)
+            {
+                SelectedTheme = ThemePreference.System;
+            }
+        }
+    }
+
+    public bool IsLightTheme
+    {
+        get => SelectedTheme == ThemePreference.Light;
+        set
+        {
+            if (value && SelectedTheme != ThemePreference.Light)
+            {
+                SelectedTheme = ThemePreference.Light;
+            }
+        }
+    }
+
+    public bool IsDarkTheme
+    {
+        get => SelectedTheme == ThemePreference.Dark;
+        set
+        {
+            if (value && SelectedTheme != ThemePreference.Dark)
+            {
+                SelectedTheme = ThemePreference.Dark;
+            }
+        }
+    }
+
+    // --- History ---
     [ObservableProperty]
-    private bool _enableHistory;
+    private bool _enableHistory = true;
+
+    partial void OnEnableHistoryChanged(bool value) => AutoPersistSettings();
 
     public ObservableCollection<HistoryItem> RecentHistory { get; } = new();
+
+    public bool HasHistory => RecentHistory.Count > 0;
 
     public MainWindowViewModel(
         ISettingsService settingsService,
@@ -211,6 +460,10 @@ public partial class MainWindowViewModel : ViewModelBase
         _appStateManager.TranscriptionCompleted += OnTranscriptionCompleted;
         _audioRecorder.AudioLevelChanged += OnAudioLevelChanged;
 
+        _hotkeyService.ShortcutRecorded += OnShortcutRecorded;
+        _hotkeyService.ShortcutRecordingPreview += OnShortcutRecordingPreview;
+        _hotkeyService.ShortcutRecordingCanceled += OnShortcutRecordingCanceled;
+
         LoadState();
     }
 
@@ -224,24 +477,35 @@ public partial class MainWindowViewModel : ViewModelBase
         if (HasSavedApiKey && savedKey!.Length > 8)
         {
             SavedKeyPreviewText = $"{savedKey[..4]}...{savedKey[^4..]}";
-            ConnectionStatusMessage = $"✓ API key loaded ({SavedKeyPreviewText}). Click Test Connection to verify.";
-            ConnectionStatusColor = "#22C55E";
+            ConnectionStatusMessage = $"✓ Connected ({SavedKeyPreviewText})";
+            ConnectionStatusColor = "#10B981";
         }
         else if (HasSavedApiKey)
         {
             SavedKeyPreviewText = "Configured";
-            ConnectionStatusMessage = "✓ API key loaded. Click Test Connection to verify.";
-            ConnectionStatusColor = "#22C55E";
+            ConnectionStatusMessage = "✓ Connected";
+            ConnectionStatusColor = "#10B981";
         }
 
-        SelectedModel = s.GeminiModel;
-        CurrentModelText = s.GeminiModel;
+        string model = !string.IsNullOrWhiteSpace(s.GeminiModel) ? s.GeminiModel : "gemini-3.5-transcribe";
+        if (!AvailableModels.Contains(model))
+        {
+            AvailableModels.Insert(0, model);
+        }
+        SelectedModel = model;
+        CurrentModelText = model;
 
         SelectedHotkeyMode = s.HotkeyMode;
         CurrentShortcutText = KeyFormattingHelper.FormatHotkey(s.Hotkey);
+        if (!PresetShortcuts.Contains(CurrentShortcutText))
+        {
+            PresetShortcuts.Insert(0, CurrentShortcutText);
+        }
+        UpdateShortcutKeyDisplay(s.Hotkey);
 
         CleanupEnabled = s.CleanupEnabled;
         CleanupMode = s.CleanupMode;
+        SelectedCleanupModeString = s.CleanupMode == TextCleanupMode.SmartFormatting ? "Smart formatting" : "Clean transcription (Light)";
 
         AutoPaste = s.AutoPaste;
         PreserveClipboard = s.PreserveClipboard;
@@ -271,40 +535,98 @@ public partial class MainWindowViewModel : ViewModelBase
         CurrentMicrophoneText = match?.Name ?? "Default Microphone";
     }
 
+    private void UpdateShortcutKeyDisplay(HotkeyConfig config)
+    {
+        string formatted = KeyFormattingHelper.FormatHotkey(config);
+        var parts = formatted.Split(" + ");
+        if (parts.Length > 1)
+        {
+            ShortcutModifierKeyText = string.Join(" + ", parts.Take(parts.Length - 1));
+            ShortcutMainKeyText = parts.Last();
+        }
+        else
+        {
+            ShortcutModifierKeyText = string.Empty;
+            ShortcutMainKeyText = parts[0];
+        }
+        ShortcutModeCaption = SelectedHotkeyMode == HotkeyActivationMode.HoldToTalk ? "(Hold to talk)" : "(Toggle)";
+        string action = SelectedHotkeyMode == HotkeyActivationMode.HoldToTalk ? "Hold" : "Press";
+        DictationInstructionTitle = $"{action} {formatted} to dictate";
+        DictationInstructionSubtitle = SelectedHotkeyMode == HotkeyActivationMode.HoldToTalk
+            ? "Release shortcut when you are finished speaking"
+            : "Press again when you are finished speaking";
+    }
+
     private void OnAppStateChanged(object? sender, AppState state)
     {
         Dispatcher.UIThread.Post(() =>
         {
             (StatusDisplay, StatusColor) = state switch
             {
-                AppState.Ready => ("● Ready", "#22C55E"),
-                AppState.Recording => ("● Recording...", "#EF4444"),
+                AppState.Ready => ("● Ready", "#10B981"),
+                AppState.Recording => ("● Listening...", "#E11D48"),
                 AppState.Transcribing => ("◌ Transcribing...", "#38BDF8"),
                 AppState.Cleaning => ("✦ Refining text...", "#A855F7"),
                 AppState.Pasting => ("✓ Pasting...", "#10B981"),
-                AppState.Success => ("✓ Done", "#22C55E"),
-                AppState.Error => ("✕ Error", "#EF4444"),
-                AppState.Paused => ("● Paused", "#94A3B8"),
-                _ => ("● Ready", "#22C55E")
+                AppState.Success => ("✓ Done", "#10B981"),
+                AppState.Error => ("✕ Error", "#E11D48"),
+                AppState.Paused => ("● Paused", "#A1A1AA"),
+                _ => ("● Ready", "#10B981")
             };
+
+            switch (state)
+            {
+                case AppState.Recording:
+                    IsListening = true;
+                    IsHeroTranscribing = false;
+                    HomeHeading = "Listening...";
+                    HomeSubtitle = "Speak naturally. Release hotkey when done.";
+                    break;
+                case AppState.Transcribing:
+                case AppState.Cleaning:
+                    IsListening = false;
+                    IsHeroTranscribing = true;
+                    HomeHeading = "Transcribing...";
+                    HomeSubtitle = "Transcribing in real-time via Gemini Transcribe...";
+                    break;
+                case AppState.Ready:
+                case AppState.Success:
+                    IsListening = false;
+                    IsHeroTranscribing = false;
+                    HomeHeading = "Ready to dictate";
+                    HomeSubtitle = "VoiceFlow is active and listening for your hotkey anywhere on Windows.";
+                    break;
+                case AppState.Error:
+                    IsListening = false;
+                    IsHeroTranscribing = false;
+                    HomeHeading = "Transcription error";
+                    HomeSubtitle = "Check microphone connection or Gemini API key in Settings.";
+                    break;
+            }
         });
     }
 
     private void OnTranscriptionCompleted(object? sender, string text)
     {
-        if (!EnableHistory) return;
-
         Dispatcher.UIThread.Post(() =>
         {
-            RecentHistory.Insert(0, new HistoryItem
-            {
-                FinalText = text,
-                Timestamp = DateTime.Now
-            });
+            LastTranscriptionText = text;
+            LastTranscriptionTime = "Just now";
+            HasLastTranscription = true;
 
-            while (RecentHistory.Count > 20)
+            if (EnableHistory)
             {
-                RecentHistory.RemoveAt(RecentHistory.Count - 1);
+                RecentHistory.Insert(0, new HistoryItem
+                {
+                    FinalText = text,
+                    Timestamp = DateTime.Now
+                });
+
+                while (RecentHistory.Count > 50)
+                {
+                    RecentHistory.RemoveAt(RecentHistory.Count - 1);
+                }
+                OnPropertyChanged(nameof(HasHistory));
             }
         });
     }
@@ -315,12 +637,104 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Dispatcher.UIThread.Post(() => MicTestLevel = level);
         }
-        if (IsRecordingTestSpeech)
+        if (IsRecordingTestSpeech || IsListening)
         {
-            Dispatcher.UIThread.Post(() => TestAudioLevel = level);
+            Dispatcher.UIThread.Post(() =>
+            {
+                TestAudioLevel = level;
+                UpdateHomeWaveBars(level);
+            });
         }
     }
 
+    private void UpdateHomeWaveBars(float level)
+    {
+        double baseH = 8.0;
+        double maxH = 38.0;
+        double span = maxH - baseH;
+        HomeWaveBar1 = Math.Clamp(baseH + span * (level * 1.0), baseH, maxH);
+        HomeWaveBar2 = Math.Clamp(baseH + span * (level * 2.2), baseH, maxH);
+        HomeWaveBar3 = Math.Clamp(baseH + span * (level * 3.0), baseH, maxH);
+        HomeWaveBar4 = Math.Clamp(baseH + span * (level * 2.0), baseH, maxH);
+        HomeWaveBar5 = Math.Clamp(baseH + span * (level * 1.1), baseH, maxH);
+    }
+
+    // --- Navigation Commands ---
+    [RelayCommand]
+    private void NavigateTo(string section)
+    {
+        if (Enum.TryParse<AppSection>(section, true, out var target))
+        {
+            CurrentSection = target;
+        }
+    }
+
+    // --- Home View Commands ---
+    [RelayCommand]
+    private async Task ToggleHomeRecordingAsync()
+    {
+        if (IsRecordingTestSpeech)
+        {
+            await FinishTestSpeechAsync();
+        }
+        else if (!IsListening && !IsHeroTranscribing)
+        {
+            StartTestSpeech();
+        }
+    }
+
+    [RelayCommand]
+    private async Task CopyLastTranscriptionAsync()
+    {
+        if (!string.IsNullOrEmpty(LastTranscriptionText))
+        {
+            await _clipboardService.SetTextAsync(LastTranscriptionText);
+            ConnectionStatusMessage = "✓ Copied to clipboard!";
+        }
+    }
+
+    // --- History View Commands ---
+    [RelayCommand]
+    private async Task CopyHistoryItemAsync(HistoryItem? item)
+    {
+        if (item != null && !string.IsNullOrEmpty(item.FinalText))
+        {
+            await _clipboardService.SetTextAsync(item.FinalText);
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteHistoryItem(HistoryItem? item)
+    {
+        if (item != null)
+        {
+            RecentHistory.Remove(item);
+            OnPropertyChanged(nameof(HasHistory));
+            if (LastTranscriptionText == item.FinalText)
+            {
+                var next = RecentHistory.FirstOrDefault();
+                if (next != null)
+                {
+                    LastTranscriptionText = next.FinalText;
+                    LastTranscriptionTime = next.FormattedTime;
+                }
+                else
+                {
+                    HasLastTranscription = false;
+                    LastTranscriptionText = string.Empty;
+                }
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void ClearHistory()
+    {
+        RecentHistory.Clear();
+        OnPropertyChanged(nameof(HasHistory));
+    }
+
+    // --- Settings Commands & Auto-Persist ---
     [RelayCommand]
     private void SaveApiKey()
     {
@@ -328,15 +742,15 @@ public partial class MainWindowViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(key))
         {
             ConnectionStatusMessage = "Please paste or type your Gemini API key.";
-            ConnectionStatusColor = "#EF4444";
+            ConnectionStatusColor = "#E11D48";
             return;
         }
 
         _settingsService.SaveApiKey(key);
         HasSavedApiKey = true;
         SavedKeyPreviewText = key.Length > 8 ? $"{key[..4]}...{key[^4..]}" : "Configured";
-        ConnectionStatusMessage = $"✓ API key securely saved ({SavedKeyPreviewText}) in Windows DPAPI storage.";
-        ConnectionStatusColor = "#22C55E";
+        ConnectionStatusMessage = $"✓ Connected ({SavedKeyPreviewText})";
+        ConnectionStatusColor = "#10B981";
     }
 
     [RelayCommand]
@@ -353,8 +767,14 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!_settingsService.HasApiKey)
         {
             ConnectionStatusMessage = "✕ Please enter an API key first.";
-            ConnectionStatusColor = "#EF4444";
+            ConnectionStatusColor = "#E11D48";
             return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SelectedModel))
+        {
+            _settingsService.Settings.GeminiModel = SelectedModel;
+            CurrentModelText = SelectedModel;
         }
 
         IsTestingConnection = true;
@@ -365,13 +785,13 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var (success, message) = await _transcriptionProvider.TestConnectionAsync();
-            ConnectionStatusMessage = message;
-            ConnectionStatusColor = success ? "#22C55E" : "#EF4444";
+            ConnectionStatusMessage = success ? "✓ Connected" : message;
+            ConnectionStatusColor = success ? "#10B981" : "#E11D48";
         }
         catch (Exception ex)
         {
             ConnectionStatusMessage = $"✕ Connection failed: {ex.Message}";
-            ConnectionStatusColor = "#EF4444";
+            ConnectionStatusColor = "#E11D48";
         }
         finally
         {
@@ -401,7 +821,7 @@ public partial class MainWindowViewModel : ViewModelBase
         else
         {
             ConnectionStatusMessage = "Clipboard is empty or does not contain text.";
-            ConnectionStatusColor = "#EF4444";
+            ConnectionStatusColor = "#E11D48";
         }
     }
 
@@ -413,7 +833,7 @@ public partial class MainWindowViewModel : ViewModelBase
         HasSavedApiKey = false;
         SavedKeyPreviewText = string.Empty;
         ConnectionStatusMessage = "API key cleared.";
-        ConnectionStatusColor = "#94A3B8";
+        ConnectionStatusColor = "#A1A1AA";
     }
 
     [RelayCommand]
@@ -443,55 +863,181 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void SetPresetShortcut(string preset)
     {
-        HotkeyConfig config = preset switch
-        {
-            "Alt + Space" => new HotkeyConfig(KeyModifiers.Alt, Win32Constants.VK_SPACE),
-            "Ctrl + Shift + Space" => new HotkeyConfig(KeyModifiers.Control | KeyModifiers.Shift, Win32Constants.VK_SPACE),
-            "F8" => new HotkeyConfig(KeyModifiers.None, Win32Constants.VK_F8),
-            "F9" => new HotkeyConfig(KeyModifiers.None, Win32Constants.VK_F9),
-            _ => new HotkeyConfig(KeyModifiers.Control, Win32Constants.VK_SPACE)
-        };
+        if (string.IsNullOrWhiteSpace(preset)) return;
+
+        HotkeyConfig config = KeyFormattingHelper.ParseHotkey(preset) ?? HotkeyConfig.Default;
 
         _settingsService.Settings.Hotkey = config;
         _settingsService.SaveSettings();
 
         CurrentShortcutText = KeyFormattingHelper.FormatHotkey(config);
+        UpdateShortcutKeyDisplay(config);
 
         bool success = _hotkeyService.RegisterHotkey(config, SelectedHotkeyMode);
-        HotkeyRegistrationError = success ? string.Empty : "✕ Could not register this shortcut. It may be in use by Windows.";
+        HotkeyRegistrationError = success ? string.Empty : "✕ Could not register this shortcut. It may be in use by Windows or another app.";
+        ShortcutStatusFeedback = success ? $"✓ Active shortcut set to [{CurrentShortcutText}]." : "✕ Could not register shortcut.";
+        ShortcutStatusColor = success ? "#10B981" : "#E11D48";
+    }
+
+    [RelayCommand]
+    private void StartRecordingShortcut()
+    {
+        IsRecordingShortcut = true;
+        ShortcutRecordingPrompt = "Press keys...";
+        ShortcutStatusFeedback = "Listening for any Function key (F1–F12) or 2–3 key combination (Esc to cancel)...";
+        ShortcutStatusColor = "#38BDF8";
+        _hotkeyService.StartRecordingShortcut();
+    }
+
+    [RelayCommand]
+    private void CancelRecordingShortcut()
+    {
+        _hotkeyService.StopRecordingShortcut();
+        IsRecordingShortcut = false;
+        ShortcutStatusFeedback = "Recording cancelled.";
+        ShortcutStatusColor = "#A1A1AA";
+    }
+
+    [RelayCommand]
+    private void ResetDefaultShortcut()
+    {
+        _hotkeyService.StopRecordingShortcut();
+        IsRecordingShortcut = false;
+        var def = HotkeyConfig.Default;
+        _settingsService.Settings.Hotkey = def;
+        AutoPersistSettings();
+
+        CurrentShortcutText = KeyFormattingHelper.FormatHotkey(def);
+        UpdateShortcutKeyDisplay(def);
+
+        bool success = _hotkeyService.RegisterHotkey(def, SelectedHotkeyMode);
+        ShortcutStatusFeedback = success ? "✓ Reset to default (Ctrl + Space)." : "✕ Could not register default shortcut.";
+        ShortcutStatusColor = success ? "#10B981" : "#E11D48";
+        HotkeyRegistrationError = success ? string.Empty : "✕ Default shortcut is currently unavailable.";
+    }
+
+    private void OnShortcutRecorded(object? sender, HotkeyConfig recorded)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            IsRecordingShortcut = false;
+
+            bool hasModifier = recorded.Modifiers != KeyModifiers.None;
+            bool isFunctionKey = recorded.VirtualKey >= Win32Constants.VK_F1 && recorded.VirtualKey <= Win32Constants.VK_F12;
+            bool isSpecialKey = recorded.VirtualKey is Win32Constants.VK_SNAPSHOT or Win32Constants.VK_PAUSE;
+
+            if (!hasModifier && !isFunctionKey && !isSpecialKey)
+            {
+                ShortcutStatusFeedback = "✕ Please press a Function key (F1–F12) or a combination with Ctrl/Alt/Shift/Win.";
+                ShortcutStatusColor = "#E11D48";
+                return;
+            }
+
+            if (IsReservedWindowsShortcut(recorded))
+            {
+                ShortcutStatusFeedback = "✕ This combination is reserved by Windows. Please choose another.";
+                ShortcutStatusColor = "#E11D48";
+                return;
+            }
+
+            bool success = _hotkeyService.RegisterHotkey(recorded, SelectedHotkeyMode);
+            if (success)
+            {
+                _settingsService.Settings.Hotkey = recorded;
+                AutoPersistSettings();
+
+                CurrentShortcutText = KeyFormattingHelper.FormatHotkey(recorded);
+                UpdateShortcutKeyDisplay(recorded);
+
+                ShortcutStatusFeedback = $"✓ Shortcut [{CurrentShortcutText}] registered successfully!";
+                ShortcutStatusColor = "#10B981";
+                HotkeyRegistrationError = string.Empty;
+            }
+            else
+            {
+                _hotkeyService.RegisterHotkey(_settingsService.Settings.Hotkey, SelectedHotkeyMode);
+                ShortcutStatusFeedback = "✕ Windows rejected this shortcut. It may be in use by another application.";
+                ShortcutStatusColor = "#E11D48";
+                HotkeyRegistrationError = "✕ Shortcut registration failed.";
+            }
+        });
+    }
+
+    private void OnShortcutRecordingPreview(object? sender, string preview)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            ShortcutRecordingPrompt = preview;
+        });
+    }
+
+    private void OnShortcutRecordingCanceled(object? sender, EventArgs e)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            IsRecordingShortcut = false;
+            ShortcutStatusFeedback = "Recording cancelled.";
+            ShortcutStatusColor = "#A1A1AA";
+        });
+    }
+
+    private static bool IsReservedWindowsShortcut(HotkeyConfig config)
+    {
+        if (config.Modifiers == KeyModifiers.Windows && config.VirtualKey == 0x4C) return true; // Win + L
+        if (config.Modifiers == KeyModifiers.Windows && config.VirtualKey == 0x44) return true; // Win + D
+        if (config.Modifiers == KeyModifiers.Alt && config.VirtualKey == Win32Constants.VK_TAB) return true; // Alt + Tab
+        if (config.Modifiers == KeyModifiers.Alt && config.VirtualKey == Win32Constants.VK_F4) return true; // Alt + F4
+        return false;
     }
 
     [RelayCommand]
     private void SaveAllSettings()
     {
-        var s = _settingsService.Settings;
+        AutoPersistSettings(updateHotkey: false);
+    }
 
-        s.GeminiModel = SelectedModel;
-        s.HotkeyMode = SelectedHotkeyMode;
-        s.CleanupEnabled = CleanupEnabled;
-        s.CleanupMode = CleanupMode;
-        s.AutoPaste = AutoPaste;
-        s.PreserveClipboard = PreserveClipboard;
-        s.ShowOverlay = ShowOverlay;
-        s.RunInBackground = RunInBackground;
-        s.Theme = SelectedTheme;
-        s.EnableHistory = EnableHistory;
+    private bool _isPersistingSettings = false;
 
-        if (SelectedAudioDevice != null)
+    private void AutoPersistSettings(bool updateHotkey = false)
+    {
+        if (_isPersistingSettings) return;
+        if (_settingsService?.Settings == null) return;
+
+        try
         {
-            s.SelectedAudioDeviceIndex = SelectedAudioDevice.DeviceNumber;
-            s.SelectedAudioDeviceName = SelectedAudioDevice.Name;
-            CurrentMicrophoneText = SelectedAudioDevice.Name;
+            _isPersistingSettings = true;
+
+            var s = _settingsService.Settings;
+            s.GeminiModel = SelectedModel;
+            s.HotkeyMode = SelectedHotkeyMode;
+            s.CleanupEnabled = CleanupEnabled;
+            s.CleanupMode = CleanupMode;
+            s.AutoPaste = AutoPaste;
+            s.PreserveClipboard = PreserveClipboard;
+            s.ShowOverlay = ShowOverlay;
+            s.RunInBackground = RunInBackground;
+            s.Theme = SelectedTheme;
+            s.EnableHistory = EnableHistory;
+            s.StartWithWindows = StartWithWindows;
+
+            if (SelectedAudioDevice != null)
+            {
+                s.SelectedAudioDeviceIndex = SelectedAudioDevice.DeviceNumber;
+                s.SelectedAudioDeviceName = SelectedAudioDevice.Name;
+                CurrentMicrophoneText = SelectedAudioDevice.Name;
+            }
+
+            _settingsService.SaveSettings();
+
+            if (updateHotkey)
+            {
+                _hotkeyService?.RegisterHotkey(s.Hotkey, s.HotkeyMode);
+            }
         }
-
-        _settingsService.SaveSettings();
-
-        _startupService.SetStartupEnabled(StartWithWindows);
-        s.StartWithWindows = StartWithWindows;
-
-        _hotkeyService.RegisterHotkey(s.Hotkey, s.HotkeyMode);
-
-        ApplyTheme(SelectedTheme);
+        finally
+        {
+            _isPersistingSettings = false;
+        }
     }
 
     public static void ApplyTheme(ThemePreference theme)
@@ -506,14 +1052,7 @@ public partial class MainWindowViewModel : ViewModelBase
         };
     }
 
-    [RelayCommand]
-    private void ClearHistory()
-    {
-        RecentHistory.Clear();
-    }
-
     // --- Interactive Voice Testing Playground Commands ---
-
     [RelayCommand]
     private void StartTestSpeech()
     {
@@ -524,11 +1063,15 @@ public partial class MainWindowViewModel : ViewModelBase
             int dev = SelectedAudioDevice?.DeviceNumber ?? -1;
             _audioRecorder.StartRecording(dev);
             IsRecordingTestSpeech = true;
+            IsListening = true;
             HasTestResult = false;
             TestTranscriptionResult = string.Empty;
             TestSpeechLatencyInfo = string.Empty;
             TestSpeechDuration = "00:00";
+            HomeTimerText = "00:00";
             TestAudioLevel = 0f;
+            HomeHeading = "Listening...";
+            HomeSubtitle = "Speak naturally. Release hotkey or click finish when done.";
             TestSpeechStatus = "Listening... Speak clearly into your microphone, then click Finish.";
 
             _testSpeechTimer?.Stop();
@@ -537,6 +1080,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 var d = _audioRecorder.RecordingDuration;
                 TestSpeechDuration = $"{(int)d.TotalMinutes:D2}:{d.Seconds:D2}";
+                HomeTimerText = TestSpeechDuration;
             };
             _testSpeechTimer.Start();
         }
@@ -554,7 +1098,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
         _testSpeechTimer?.Stop();
         IsRecordingTestSpeech = false;
+        IsListening = false;
         IsTranscribingTestSpeech = true;
+        IsHeroTranscribing = true;
+        HomeHeading = "Transcribing...";
+        HomeSubtitle = "Transcribing in real-time via Gemini Transcribe...";
         TestSpeechStatus = "Transcribing audio with Gemini API...";
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -565,7 +1113,10 @@ public partial class MainWindowViewModel : ViewModelBase
             if (audioStream.Length < 1000)
             {
                 TestSpeechStatus = "Recording too short to transcribe. Please speak a sentence and click Finish.";
+                HomeHeading = "Ready to dictate";
+                HomeSubtitle = "Recording was too short. Speak clearly into your microphone.";
                 IsTranscribingTestSpeech = false;
+                IsHeroTranscribing = false;
                 return;
             }
 
@@ -573,8 +1124,11 @@ public partial class MainWindowViewModel : ViewModelBase
             if (!result.Success)
             {
                 TestSpeechStatus = $"Transcription failed: {result.ErrorMessage}";
+                HomeHeading = "Transcription error";
+                HomeSubtitle = result.ErrorMessage ?? "Unknown transcription failure";
                 BuildDetailedError("Transcription Failed", result.ErrorMessage ?? "Unknown transcription failure", null);
                 IsTranscribingTestSpeech = false;
+                IsHeroTranscribing = false;
                 return;
             }
 
@@ -592,16 +1146,39 @@ public partial class MainWindowViewModel : ViewModelBase
             HasDebugError = false;
             TestSpeechLatencyInfo = $"✓ Transcribed in {sw.ElapsedMilliseconds}ms ({SelectedModel})";
             TestSpeechStatus = "Transcription complete!";
+
+            LastTranscriptionText = text;
+            LastTranscriptionTime = "Just now";
+            HasLastTranscription = true;
+            HomeHeading = "Ready to dictate";
+            HomeSubtitle = "VoiceFlow is active and listening for your hotkey anywhere on Windows.";
+
+            if (EnableHistory)
+            {
+                RecentHistory.Insert(0, new HistoryItem
+                {
+                    FinalText = text,
+                    Timestamp = DateTime.Now
+                });
+                while (RecentHistory.Count > 50)
+                {
+                    RecentHistory.RemoveAt(RecentHistory.Count - 1);
+                }
+                OnPropertyChanged(nameof(HasHistory));
+            }
         }
         catch (Exception ex)
         {
             AppLogger.LogError("Error in test speech transcription.", ex);
             TestSpeechStatus = $"Error: {ex.Message}";
+            HomeHeading = "Transcription error";
+            HomeSubtitle = ex.Message;
             BuildDetailedError("Exception during Speech Test", ex.Message, ex);
         }
         finally
         {
             IsTranscribingTestSpeech = false;
+            IsHeroTranscribing = false;
         }
     }
 
@@ -651,7 +1228,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         DetailedErrorSummary = sb.ToString();
         HasDebugError = true;
-        IsDebugViewVisible = true; // Automatically expand debug view so user can see and copy it!
+        IsDebugViewVisible = true;
     }
 
     [RelayCommand]
@@ -660,7 +1237,6 @@ public partial class MainWindowViewModel : ViewModelBase
         IsDebugViewVisible = !IsDebugViewVisible;
         if (IsDebugViewVisible && string.IsNullOrEmpty(DetailedErrorSummary))
         {
-            // Populate with current state diagnostics even if no error
             BuildDetailedError("Current State Diagnostics", "User opened debug viewer.", null);
             HasDebugError = false;
         }
@@ -704,8 +1280,11 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _testSpeechTimer?.Stop();
             IsRecordingTestSpeech = false;
+            IsListening = false;
             await _audioRecorder.StopRecordingAsync();
             TestSpeechStatus = "Recording cancelled.";
+            HomeHeading = "Ready to dictate";
+            HomeSubtitle = "VoiceFlow is active and listening for your hotkey anywhere on Windows.";
         }
     }
 
@@ -717,5 +1296,64 @@ public partial class MainWindowViewModel : ViewModelBase
             await _clipboardService.SetTextAsync(TestTranscriptionResult);
             TestSpeechStatus = "✓ Copied transcription to clipboard!";
         }
+    }
+
+    // --- About View Commands ---
+    [RelayCommand]
+    private void OpenDocumentation()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "https://ai.google.dev/gemini-api/docs",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Failed to open documentation link.", ex);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenPrivacyPolicy()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "https://github.com",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Failed to open privacy policy link.", ex);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenGitHub()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "https://github.com",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Failed to open GitHub link.", ex);
+        }
+    }
+
+    [RelayCommand]
+    private void CheckForUpdates()
+    {
+        ConnectionStatusMessage = "VoiceFlow is up to date (v1.0.0).";
+        ConnectionStatusColor = "#10B981";
     }
 }

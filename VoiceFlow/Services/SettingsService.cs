@@ -54,6 +54,14 @@ public class SettingsService : ISettingsService
                 if (loaded != null)
                 {
                     _settings = loaded;
+                    // Auto-migrate legacy/deprecated Gemini models to gemini-3.5-transcribe
+                    if (string.IsNullOrWhiteSpace(_settings.GeminiModel) ||
+                        _settings.GeminiModel.StartsWith("gemini-2.") ||
+                        _settings.GeminiModel.StartsWith("gemini-1."))
+                    {
+                        _settings.GeminiModel = "gemini-3.5-transcribe";
+                        SaveSettings();
+                    }
                 }
             }
             else

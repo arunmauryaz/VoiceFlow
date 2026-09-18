@@ -13,7 +13,7 @@ public class AppSettings
 
     // Transcription API
     public string ApiProvider { get; set; } = "Gemini";
-    public string GeminiModel { get; set; } = "gemini-2.5-flash";
+    public string GeminiModel { get; set; } = "gemini-3.5-transcribe";
 
     // AI Text Cleanup
     public bool CleanupEnabled { get; set; } = false;
@@ -28,6 +28,6 @@ public class AppSettings
     public bool PreserveClipboard { get; set; } = true;
     public bool ShowOverlay { get; set; } = true;
 
-    // History (Optional, default OFF)
-    public bool EnableHistory { get; set; } = false;
+    // History (Default ON)
+    public bool EnableHistory { get; set; } = true;
 }

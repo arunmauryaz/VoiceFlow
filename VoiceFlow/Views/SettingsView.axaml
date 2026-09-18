@@ -1,0 +1,517 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VoiceFlow.ViewModels"
+             x:Class="VoiceFlow.Views.SettingsView"
+             x:Name="RootSettings"
+             x:DataType="vm:MainWindowViewModel">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="32,28,32,48" Spacing="24">
+
+            <!-- PAGE HEADER -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Settings"
+                           FontSize="26"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <TextBlock Text="Configure activation shortcuts, transcription models, and desktop behavior."
+                           FontSize="13.5"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+            </StackPanel>
+
+            <!-- 1. GENERAL SECTION -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="GENERAL" Classes="sectionHeader" />
+
+                <!-- Run in Background -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Run in background" Classes="settingTitle" />
+                        <TextBlock Text="Keep VoiceFlow active in the system tray when closing the window." Classes="settingDesc" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsChecked="{Binding RunInBackground}"
+                                  OnContent="" OffContent=""
+                                  VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Start with Windows -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Start with Windows" Classes="settingTitle" />
+                        <TextBlock Text="Automatically launch VoiceFlow minimized upon logging in." Classes="settingDesc" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsChecked="{Binding StartWithWindows}"
+                                  OnContent="" OffContent=""
+                                  VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Show Recording Overlay -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Show recording overlay" Classes="settingTitle" />
+                        <TextBlock Text="Display the floating HUD widget on screen during dictation." Classes="settingDesc" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsChecked="{Binding ShowOverlay}"
+                                  OnContent="" OffContent=""
+                                  VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel>
+
+            <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+            <!-- 2. MICROPHONE SECTION -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="MICROPHONE" Classes="sectionHeader" />
+
+                <!-- Input Device -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Input device" Classes="settingTitle" />
+                        <TextBlock Text="Select the physical microphone used for voice capture." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding AudioDevices}"
+                              SelectedItem="{Binding SelectedAudioDevice}"
+                              MinWidth="240" MaxWidth="360"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Microphone Status -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Microphone status" Classes="settingTitle" />
+                        <TextBlock Text="Live check of audio stream input levels." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Classes="secondary"
+                                Command="{Binding ToggleMicrophoneTestCommand}">
+                            <Panel>
+                                <TextBlock Text="Test microphone" FontSize="13" IsVisible="{Binding !IsTestingMic}" />
+                                <TextBlock Text="Stop test" FontSize="13" Foreground="{StaticResource RecordingDotBrush}" IsVisible="{Binding IsTestingMic}" />
+                            </Panel>
+                        </Button>
+                        <Border Background="{StaticResource ReadyBgBrush}"
+                                BorderBrush="{StaticResource ReadyBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="16"
+                                Padding="10,5"
+                                VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Border Width="7" Height="7" CornerRadius="3.5" Background="{StaticResource ReadyStatusBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="Microphone working" FontSize="12.5" FontWeight="Medium" Foreground="{StaticResource ReadyStatusBrush}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+
+            <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+            <!-- 3. TRANSCRIPTION & GEMINI API SECTION -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="TRANSCRIPTION &amp; GEMINI API" Classes="sectionHeader" />
+
+                <!-- Provider -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Transcription provider" Classes="settingTitle" />
+                        <TextBlock Text="Backend service executing speech-to-text inference." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding AvailableProviders}"
+                              SelectedItem="{Binding SelectedProvider}"
+                              MinWidth="240" MaxWidth="360"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Model -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Transcription model" Classes="settingTitle" />
+                        <TextBlock Text="Ultra low-latency multilingual transcription model." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding AvailableModels}"
+                              SelectedItem="{Binding SelectedModel}"
+                              MinWidth="240" MaxWidth="360"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- API Key -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Gemini API Key" Classes="settingTitle" />
+                        <TextBlock Text="Stored securely on this device via Windows DPAPI. Never sent elsewhere." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="6" MinWidth="260" MaxWidth="380" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding ApiKeyInput, Mode=TwoWay}"
+                                     PasswordChar="{Binding ApiKeyPasswordChar}"
+                                     Watermark="Paste Gemini API Key (AIzaSy...)"
+                                     VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Classes="ghost"
+                                    Margin="4,0,0,0"
+                                    Padding="6,6"
+                                    ToolTip.Tip="Reveal / Mask Key"
+                                    Command="{Binding ToggleRevealApiKeyCommand}">
+                                <TextBlock Text="{Binding RevealButtonIcon}" FontSize="12" />
+                            </Button>
+                            <!-- Connection Status Badge / Test Button -->
+                            <Button Grid.Column="2"
+                                    Margin="6,0,0,0"
+                                    Classes="secondary"
+                                    Command="{Binding TestConnectionCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <PathIcon Data="{StaticResource IconCheck}"
+                                              Width="12" Height="12"
+                                              Foreground="{StaticResource ReadyStatusBrush}"
+                                              IsVisible="{Binding HasSavedApiKey}" />
+                                    <TextBlock Text="{Binding TestConnectionButtonText}"
+                                               FontSize="12.5"
+                                               FontWeight="Medium" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <TextBlock Text="{Binding ConnectionStatusMessage}"
+                                   FontSize="12"
+                                   Foreground="{Binding ConnectionStatusColor}"
+                                   IsVisible="{Binding ConnectionStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+
+            <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+            <!-- 4. SHORTCUT SECTION -->
+            <StackPanel Spacing="18">
+                <TextBlock Text="SHORTCUT" Classes="sectionHeader" />
+
+                <!-- Comprehensive Shortcut Card -->
+                <Border Classes="card" Padding="20,18">
+                    <StackPanel Spacing="16">
+                        <!-- Top Row: Active Shortcut & Interactive Action Buttons -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center" Margin="0,0,16,0">
+                                <TextBlock Text="Active shortcut" Classes="settingTitle" />
+                                <TextBlock Text="Click 'Record Key' or choose any option below to set your shortcut." Classes="settingDesc" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                <!-- Clickable Keycap Display / Record Button -->
+                                <Button Classes="ghost"
+                                        Padding="0"
+                                        Command="{Binding StartRecordingShortcutCommand}"
+                                        IsVisible="{Binding !IsRecordingShortcut}"
+                                        ToolTip.Tip="Click to record any custom shortcut on your physical keyboard">
+                                    <Border Background="{StaticResource SurfaceBrush}"
+                                            BorderBrush="{StaticResource BorderStrongBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="12,7">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <Border Classes="keycap"
+                                                    IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                <TextBlock Text="{Binding ShortcutModifierKeyText}" Classes="keycap" />
+                                            </Border>
+                                            <TextBlock Text="+"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       FontWeight="SemiBold"
+                                                       IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                            <Border Classes="keycap">
+                                                <TextBlock Text="{Binding ShortcutMainKeyText}" Classes="keycap" />
+                                            </Border>
+                                            <Border Width="1" Height="14" Background="{StaticResource BorderSubtleBrush}" Margin="6,0" />
+                                            <TextBlock Text="🎙️ Record Key" FontSize="12" Foreground="{StaticResource BrandGradientEnd}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Button>
+
+                                <!-- Live Recording State Box -->
+                                <Border Background="#18181B"
+                                        BorderBrush="#38BDF8"
+                                        BorderThickness="1.5"
+                                        CornerRadius="8"
+                                        Padding="12,7"
+                                        IsVisible="{Binding IsRecordingShortcut}"
+                                        VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <Border Width="8" Height="8" CornerRadius="4" Background="#38BDF8" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding ShortcutRecordingPrompt}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#38BDF8"
+                                                   VerticalAlignment="Center" />
+                                        <Button Classes="ghost"
+                                                Content="Cancel (Esc)"
+                                                FontSize="11.5"
+                                                Foreground="#A1A1AA"
+                                                Padding="6,2"
+                                                Command="{Binding CancelRecordingShortcutCommand}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Reset to Default Button -->
+                                <Button Classes="secondary"
+                                        Content="Default"
+                                        ToolTip.Tip="Reset to default (Ctrl + Space)"
+                                        Command="{Binding ResetDefaultShortcutCommand}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Live Recording Helper Banner -->
+                        <Border Background="#0F243A"
+                                BorderBrush="#1E40AF"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12,8"
+                                IsVisible="{Binding IsRecordingShortcut}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Text="ℹ️" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock Text="Press ANY single Function key (F1–F12) or any 2–3 key combination (e.g. Ctrl + Space, Win + Alt + V). Press Esc to cancel."
+                                           FontSize="12"
+                                           Foreground="#93C5FD"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Feedback / Validation Message -->
+                        <TextBlock Text="{Binding ShortcutStatusFeedback}"
+                                   FontSize="12"
+                                   Foreground="{Binding ShortcutStatusColor}"
+                                   IsVisible="{Binding ShortcutStatusFeedback, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                        <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+                        <!-- Option A: Single Function Keys (F1 - F12) Quick-Select Bar -->
+                        <StackPanel Spacing="10">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="SINGLE FUNCTION KEYS (F1 – F12)"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           LetterSpacing="0.6" />
+                                <TextBlock Text="Click any function key to instantly activate single-key voice typing:"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding PresetFunctionKeys}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Button Classes="ghost"
+                                                Padding="0"
+                                                Margin="0,0,8,8"
+                                                ToolTip.Tip="{Binding}"
+                                                Command="{Binding #RootSettings.DataContext.SetPresetShortcutCommand}"
+                                                CommandParameter="{Binding}">
+                                            <Border Background="{StaticResource SurfaceBrush}"
+                                                    BorderBrush="{StaticResource BorderStrongBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="7"
+                                                    Padding="12,7"
+                                                    MinWidth="48">
+                                                <TextBlock Text="{Binding}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           HorizontalAlignment="Center" />
+                                            </Border>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+                        <!-- Option B: Popular 2-3 Key Shortcuts Quick-Select Bar -->
+                        <StackPanel Spacing="10">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="POPULAR 2–3 KEY SHORTCUTS"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           LetterSpacing="0.6" />
+                                <TextBlock Text="Click any popular shortcut combo to activate:"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding PresetCombos}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Button Classes="ghost"
+                                                Padding="0"
+                                                Margin="0,0,8,8"
+                                                ToolTip.Tip="{Binding}"
+                                                Command="{Binding #RootSettings.DataContext.SetPresetShortcutCommand}"
+                                                CommandParameter="{Binding}">
+                                            <Border Background="{StaticResource SurfaceBrush}"
+                                                    BorderBrush="{StaticResource BorderStrongBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="7"
+                                                    Padding="12,7">
+                                                <TextBlock Text="{Binding}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           HorizontalAlignment="Center" />
+                                            </Border>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+                        <!-- Option C: All Presets Dropdown Selector -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="All preset shortcuts" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="Browse the full list of supported shortcuts or apply a custom choice." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <ComboBox ItemsSource="{Binding PresetShortcuts}"
+                                          SelectedItem="{Binding CurrentShortcutText}"
+                                          Width="180" />
+                                <Button Classes="secondary"
+                                        Content="Apply"
+                                        Command="{Binding SetPresetShortcutCommand}"
+                                        CommandParameter="{Binding CurrentShortcutText}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Activation Mode: Hold vs Toggle -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Activation mode" Classes="settingTitle" />
+                        <TextBlock Text="Choose between press-and-hold or click to start/stop." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="20" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <RadioButton GroupName="ActivationModeGroup"
+                                     Content="Hold to talk"
+                                     IsChecked="{Binding IsHoldToTalk}" />
+                        <RadioButton GroupName="ActivationModeGroup"
+                                     Content="Toggle"
+                                     IsChecked="{Binding IsToggleToTalk}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+
+            <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+            <!-- 5. TEXT INSERTION SECTION -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="TEXT INSERTION" Classes="sectionHeader" />
+
+                <!-- Auto Paste -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Automatically paste transcription" Classes="settingTitle" />
+                        <TextBlock Text="Pastes converted text directly into the focused application window." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsChecked="{Binding AutoPaste}"
+                                  OnContent="" OffContent=""
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Preserve Clipboard -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Preserve clipboard" Classes="settingTitle" />
+                        <TextBlock Text="Restores previous clipboard contents after pasting dictation." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsChecked="{Binding PreserveClipboard}"
+                                  OnContent="" OffContent=""
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel>
+
+            <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+            <!-- 6. AI CLEANUP SECTION -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="AI CLEANUP" Classes="sectionHeader" />
+
+                <!-- Clean up transcription -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Clean up transcription" Classes="settingTitle" />
+                        <TextBlock Text="Automatically removes filler words ('um', 'ah') and corrects casing." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsChecked="{Binding CleanupEnabled}"
+                                  OnContent="" OffContent=""
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Cleanup mode dropdown -->
+                <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding CleanupEnabled}">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Cleanup mode" Classes="settingTitle" />
+                        <TextBlock Text="Level of AI post-processing formatting applied to speech." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding AvailableCleanupModes}"
+                              SelectedItem="{Binding SelectedCleanupModeString}"
+                              MinWidth="240" MaxWidth="360"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel>
+
+            <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+            <!-- 7. APPEARANCE SECTION -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="APPEARANCE" Classes="sectionHeader" />
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="Application theme" Classes="settingTitle" />
+                        <TextBlock Text="Match Windows system personalization or force theme." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="20" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <RadioButton GroupName="ThemeGroup"
+                                     Content="System"
+                                     IsChecked="{Binding IsSystemTheme}" />
+                        <RadioButton GroupName="ThemeGroup"
+                                     Content="Light"
+                                     IsChecked="{Binding IsLightTheme}" />
+                        <RadioButton GroupName="ThemeGroup"
+                                     Content="Dark"
+                                     IsChecked="{Binding IsDarkTheme}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

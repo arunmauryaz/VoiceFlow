@@ -2,6 +2,14 @@ using System;
 
 namespace VoiceFlow.Models;
 
+public enum AppSection
+{
+    Home,
+    History,
+    Settings,
+    About
+}
+
 public enum AppState
 {
     Ready,

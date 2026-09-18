@@ -16,19 +16,38 @@ public class WindowsHotkeyService : IGlobalHotkeyService
 
     private bool _isHotkeyHeld;
     private bool _isToggledOn;
+    private bool _isRecordingShortcut;
     private bool _isDisposed;
 
     public bool IsRegistered => _hookId != IntPtr.Zero;
     public bool IsPaused { get; set; }
+    public bool IsRecordingShortcut => _isRecordingShortcut;
     public HotkeyConfig CurrentConfig => _config;
     public HotkeyActivationMode CurrentMode => _mode;
 
     public event EventHandler? HotkeyPressed;
     public event EventHandler? HotkeyReleased;
+    public event EventHandler<HotkeyConfig>? ShortcutRecorded;
+    public event EventHandler<string>? ShortcutRecordingPreview;
+    public event EventHandler? ShortcutRecordingCanceled;
 
     public WindowsHotkeyService()
     {
         _proc = HookCallback;
+    }
+
+    public void StartRecordingShortcut()
+    {
+        _isRecordingShortcut = true;
+        if (_hookId == IntPtr.Zero)
+        {
+            RegisterHotkey(_config, _mode);
+        }
+    }
+
+    public void StopRecordingShortcut()
+    {
+        _isRecordingShortcut = false;
     }
 
     public bool RegisterHotkey(HotkeyConfig config, HotkeyActivationMode mode)
@@ -92,6 +111,39 @@ public class WindowsHotkeyService : IGlobalHotkeyService
             bool isKeyDown = msg == Win32Constants.WM_KEYDOWN || msg == Win32Constants.WM_SYSKEYDOWN;
             bool isKeyUp = msg == Win32Constants.WM_KEYUP || msg == Win32Constants.WM_SYSKEYUP;
 
+            if (_isRecordingShortcut)
+            {
+                if (isKeyDown)
+                {
+                    if (vk == Win32Constants.VK_ESCAPE)
+                    {
+                        StopRecordingShortcut();
+                        ShortcutRecordingCanceled?.Invoke(this, EventArgs.Empty);
+                        return (IntPtr)1;
+                    }
+
+                    KeyModifiers currentMods = GetCurrentModifiers();
+
+                    if (IsModifierKey(vk))
+                    {
+                        string preview = Helpers.KeyFormattingHelper.FormatModifiers(currentMods);
+                        if (!string.IsNullOrEmpty(preview)) preview += " + ...";
+                        ShortcutRecordingPreview?.Invoke(this, preview);
+                        return (IntPtr)1;
+                    }
+
+                    // Complete key combination captured!
+                    var recorded = new HotkeyConfig(currentMods, vk);
+                    StopRecordingShortcut();
+                    ShortcutRecorded?.Invoke(this, recorded);
+                    return (IntPtr)1;
+                }
+                else if (isKeyUp)
+                {
+                    return (IntPtr)1;
+                }
+            }
+
             if (isKeyDown)
             {
                 if (vk == _config.VirtualKey && AreModifiersActive(_config.Modifiers))
@@ -134,6 +186,29 @@ public class WindowsHotkeyService : IGlobalHotkeyService
         }
 
         return Win32PInvoke.CallNextHookEx(_hookId, nCode, wParam, lParam);
+    }
+
+    private static KeyModifiers GetCurrentModifiers()
+    {
+        KeyModifiers mods = KeyModifiers.None;
+        if ((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_CONTROL) & 0x8000) != 0)
+            mods |= KeyModifiers.Control;
+        if ((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_MENU) & 0x8000) != 0)
+            mods |= KeyModifiers.Alt;
+        if ((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_SHIFT) & 0x8000) != 0)
+            mods |= KeyModifiers.Shift;
+        if (((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_LWIN) |
+              Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_RWIN)) & 0x8000) != 0)
+            mods |= KeyModifiers.Windows;
+        return mods;
+    }
+
+    private static bool IsModifierKey(uint vk)
+    {
+        return vk is Win32Constants.VK_CONTROL or Win32Constants.VK_LCONTROL or Win32Constants.VK_RCONTROL
+            or Win32Constants.VK_MENU or Win32Constants.VK_LMENU or Win32Constants.VK_RMENU
+            or Win32Constants.VK_SHIFT or Win32Constants.VK_LSHIFT or Win32Constants.VK_RSHIFT
+            or Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
     }
 
     private static bool AreModifiersActive(KeyModifiers required)

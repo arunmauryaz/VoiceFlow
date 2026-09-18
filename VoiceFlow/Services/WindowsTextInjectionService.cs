@@ -20,6 +20,85 @@ public class WindowsTextInjectionService : ITextInjectionService
         return Win32PInvoke.GetForegroundWindow();
     }
 
+    public bool HasFocusedEditableControl(IntPtr targetHwnd)
+    {
+        if (targetHwnd == IntPtr.Zero)
+            return false;
+
+        // 1. Fast check: Desktop or Taskbar/Shell is NOT an editable target
+        var sb = new System.Text.StringBuilder(256);
+        Win32PInvoke.GetClassName(targetHwnd, sb, 256);
+        string className = sb.ToString();
+
+        if (className is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "DV2ControlHost")
+        {
+            return false;
+        }
+
+        // 2. Win32 GUI Thread Caret check & standard Edit/RichEdit control
+        uint threadId = Win32PInvoke.GetWindowThreadProcessId(targetHwnd, out _);
+        if (threadId != 0)
+        {
+            var gui = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
+            if (Win32PInvoke.GetGUIThreadInfo(threadId, ref gui))
+            {
+                if (gui.hwndCaret != IntPtr.Zero)
+                    return true;
+
+                if ((gui.flags & Win32Constants.GUI_CARETBLINKING) != 0)
+                    return true;
+
+                IntPtr focusedChild = gui.hwndFocus != IntPtr.Zero ? gui.hwndFocus : targetHwnd;
+                var childSb = new System.Text.StringBuilder(256);
+                Win32PInvoke.GetClassName(focusedChild, childSb, 256);
+                string childClass = childSb.ToString().ToLowerInvariant();
+
+                if (childClass.Contains("edit") ||
+                    childClass.Contains("rich") ||
+                    childClass.Contains("scintilla") ||
+                    childClass.Contains("textbox") ||
+                    childClass.Contains("terminal") ||
+                    childClass.Contains("console"))
+                {
+                    return true;
+                }
+            }
+        }
+
+        // 3. UI Automation Check (Modern apps: Chromium, Electron, WPF, Avalonia, UWP, Office)
+        try
+        {
+            var uia = new Interop.UIAutomationClient.CUIAutomationClass();
+            var focused = uia.GetFocusedElement();
+            if (focused != null)
+            {
+                int controlType = focused.CurrentControlType;
+                // 50004 = UIA_EditControlTypeId, 50030 = UIA_DocumentControlTypeId, 50003 = UIA_ComboBoxControlTypeId
+                if (controlType is 50004 or 50030 or 50003)
+                {
+                    return true;
+                }
+
+                var valPattern = focused.GetCurrentPattern(10002);
+                if (valPattern is Interop.UIAutomationClient.IUIAutomationValuePattern vp)
+                {
+                    if (vp.CurrentIsReadOnly == 0)
+                        return true;
+                }
+
+                var textEditPattern = focused.GetCurrentPattern(10024);
+                if (textEditPattern != null)
+                    return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogWarning($"UI Automation check exception: {ex.Message}");
+        }
+
+        return false;
+    }
+
     public async Task<bool> InjectTextAsync(string text, IntPtr targetHwnd, bool preserveClipboard = true)
     {
         if (string.IsNullOrEmpty(text))

@@ -46,6 +46,26 @@ public class FoundationTests
         Assert.Equal("F8", KeyFormattingHelper.FormatHotkey(f8));
     }
 
+    [Theory]
+    [InlineData("F1", KeyModifiers.None, Win32Constants.VK_F1)]
+    [InlineData("F2", KeyModifiers.None, Win32Constants.VK_F2)]
+    [InlineData("F8", KeyModifiers.None, Win32Constants.VK_F8)]
+    [InlineData("F12", KeyModifiers.None, Win32Constants.VK_F12)]
+    [InlineData("Ctrl + Space", KeyModifiers.Control, Win32Constants.VK_SPACE)]
+    [InlineData("Alt + Space", KeyModifiers.Alt, Win32Constants.VK_SPACE)]
+    [InlineData("Win + Space", KeyModifiers.Windows, Win32Constants.VK_SPACE)]
+    [InlineData("Ctrl + Shift + Space", KeyModifiers.Control | KeyModifiers.Shift, Win32Constants.VK_SPACE)]
+    [InlineData("Ctrl + Alt + Space", KeyModifiers.Control | KeyModifiers.Alt, Win32Constants.VK_SPACE)]
+    [InlineData("Ctrl + F8", KeyModifiers.Control, Win32Constants.VK_F8)]
+    [InlineData("Win + Alt + V", KeyModifiers.Windows | KeyModifiers.Alt, 0x56)]
+    public void KeyFormatting_ParsesFunctionKeysAndCombinationsCorrectly(string input, KeyModifiers expectedMods, uint expectedVk)
+    {
+        var parsed = KeyFormattingHelper.ParseHotkey(input);
+        Assert.NotNull(parsed);
+        Assert.Equal(expectedMods, parsed.Modifiers);
+        Assert.Equal(expectedVk, parsed.VirtualKey);
+    }
+
     [Fact]
     public void AppSettings_DefaultValues_MatchRequirements()
     {
@@ -57,5 +77,6 @@ public class FoundationTests
         Assert.True(settings.PreserveClipboard);
         Assert.True(settings.ShowOverlay);
         Assert.False(settings.CleanupEnabled);
+        Assert.Equal("gemini-3.5-transcribe", settings.GeminiModel);
     }
 }

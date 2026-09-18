@@ -1,504 +1,151 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:VoiceFlow.ViewModels"
-        xmlns:models="using:VoiceFlow.Models"
+        xmlns:views="using:VoiceFlow.Views"
         x:Class="VoiceFlow.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/app-icon.ico"
         Title="VoiceFlow — Voice Typing"
-        Width="600" Height="780"
-        MinWidth="520" MinHeight="600"
+        Width="1000" Height="680"
+        MinWidth="850" MinHeight="580"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource SystemRegionBrush}">
+        Background="{StaticResource CanvasBgBrush}">
 
-    <Window.Styles>
-        <Style Selector="TextBlock.sectionHeader">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="#64748B" />
-            <Setter Property="Margin" Value="0,18,0,8" />
-            <Setter Property="LetterSpacing" Value="1.2" />
-        </Style>
+    <Grid ColumnDefinitions="220,*">
 
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="16,14" />
-            <Setter Property="Margin" Value="0,0,0,10" />
-        </Style>
+        <!-- ============================================== -->
+        <!-- LEFT NAVIGATION SIDEBAR                        -->
+        <!-- ============================================== -->
+        <Border Grid.Column="0"
+                Background="{StaticResource CanvasBgBrush}"
+                BorderBrush="{StaticResource BorderSubtleBrush}"
+                BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
 
-        <Style Selector="Button.primary">
-            <Setter Property="Background" Value="#4F46E5" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="14,7" />
-        </Style>
-
-        <Style Selector="Button.secondary">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="14,7" />
-        </Style>
-    </Window.Styles>
-
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="24,20,24,28" Spacing="4">
-
-            <!-- HEADER / HERO -->
-            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,14">
-                <StackPanel Grid.Column="0" Spacing="2">
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <TextBlock Text="VoiceFlow" FontSize="22" FontWeight="Bold" />
-                        <Border Background="#1E1B4B" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
-                            <TextBlock Text="v1.0" FontSize="11" FontWeight="Bold" Foreground="#818CF8" />
-                        </Border>
-                    </StackPanel>
-                    <TextBlock Text="Lightweight Windows voice-to-text utility" FontSize="12.5" Foreground="#64748B" />
+                <!-- Brand Header -->
+                <StackPanel Grid.Row="0"
+                            Orientation="Horizontal"
+                            Spacing="10"
+                            Margin="24,26,20,24"
+                            VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource IconWaveform}"
+                              Width="18" Height="18"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              VerticalAlignment="Center" />
+                    <TextBlock Text="VoiceFlow"
+                               FontSize="19"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               VerticalAlignment="Center" />
                 </StackPanel>
 
-                <!-- Status Pill -->
-                <Border Grid.Column="1"
-                        Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                        BorderThickness="1"
-                        CornerRadius="20"
-                        Padding="14,6"
-                        VerticalAlignment="Center">
-                    <TextBlock Text="{Binding StatusDisplay}"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               Foreground="{Binding StatusColor}" />
-                </Border>
-            </Grid>
-
-            <!-- QUICK SUMMARY CARD -->
-            <Border Classes="card">
-                <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto">
-                    <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
-                        <TextBlock Text="SHORTCUT" FontSize="10" FontWeight="Bold" Foreground="#64748B" />
-                        <TextBlock Text="{Binding CurrentShortcutText}" FontSize="13" FontWeight="SemiBold" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
-                        <TextBlock Text="MICROPHONE" FontSize="10" FontWeight="Bold" Foreground="#64748B" />
-                        <TextBlock Text="{Binding CurrentMicrophoneText}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
-                        <TextBlock Text="MODEL" FontSize="10" FontWeight="Bold" Foreground="#64748B" />
-                        <TextBlock Text="{Binding CurrentModelText}" FontSize="13" FontWeight="SemiBold" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <!-- INTERACTIVE VOICE TYPING PLAYGROUND -->
-            <TextBlock Text="INTERACTIVE TESTING PLAYGROUND" Classes="sectionHeader" />
-            <Border Classes="card" BorderBrush="#4F46E5" BorderThickness="1.5">
-                <StackPanel Spacing="12">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Test Dictation &amp; Live Transcription" FontWeight="SemiBold" FontSize="14" />
-                            <TextBlock Text="{Binding TestSpeechStatus}" FontSize="12" Foreground="#94A3B8" TextWrapping="Wrap" />
+                <!-- Primary Nav Group -->
+                <StackPanel Grid.Row="1" Spacing="4" Margin="14,0,14,0">
+                    <!-- Home -->
+                    <Button Classes="navItem"
+                            Classes.active="{Binding IsHomeSelected}"
+                            Command="{Binding NavigateToCommand}"
+                            CommandParameter="Home"
+                            AutomationProperties.Name="NavHome">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Data="{StaticResource IconHome}" Width="15" Height="15" VerticalAlignment="Center" />
+                            <TextBlock Text="Home" VerticalAlignment="Center" />
                         </StackPanel>
+                    </Button>
 
-                        <!-- Timer badge when recording -->
-                        <Border Grid.Column="1"
-                                Background="#1E1B4B"
-                                CornerRadius="6"
-                                Padding="8,4"
+                    <!-- History -->
+                    <Button Classes="navItem"
+                            Classes.active="{Binding IsHistorySelected}"
+                            Command="{Binding NavigateToCommand}"
+                            CommandParameter="History"
+                            AutomationProperties.Name="NavHistory">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Data="{StaticResource IconHistory}" Width="15" Height="15" VerticalAlignment="Center" />
+                            <TextBlock Text="History" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Settings -->
+                    <Button Classes="navItem"
+                            Classes.active="{Binding IsSettingsSelected}"
+                            Command="{Binding NavigateToCommand}"
+                            CommandParameter="Settings"
+                            AutomationProperties.Name="NavSettings">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Data="{StaticResource IconSettings}" Width="15" Height="15" VerticalAlignment="Center" />
+                            <TextBlock Text="Settings" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Divider -->
+                <Rectangle Grid.Row="2"
+                           Height="1"
+                           Fill="{StaticResource BorderSubtleBrush}"
+                           Margin="20,16" />
+
+                <!-- Secondary Nav Group -->
+                <StackPanel Grid.Row="3" Margin="14,0,14,0">
+                    <!-- About -->
+                    <Button Classes="navItem"
+                            Classes.active="{Binding IsAboutSelected}"
+                            Command="{Binding NavigateToCommand}"
+                            CommandParameter="About"
+                            AutomationProperties.Name="NavAbout">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <PathIcon Data="{StaticResource IconAbout}" Width="15" Height="15" VerticalAlignment="Center" />
+                            <TextBlock Text="About" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Spacer -->
+                <Panel Grid.Row="4" />
+
+                <!-- Footer Status & Version -->
+                <StackPanel Grid.Row="5" Margin="20,0,20,20" Spacing="4">
+                    <!-- Dynamic Status Pill -->
+                    <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                        <Border Width="7" Height="7"
+                                CornerRadius="3.5"
+                                Background="{StaticResource ReadyStatusBrush}"
                                 VerticalAlignment="Center"
-                                IsVisible="{Binding IsRecordingTestSpeech}">
-                            <TextBlock Text="{Binding TestSpeechDuration}"
-                                       FontFamily="Consolas, monospace"
-                                       FontWeight="Bold"
-                                       Foreground="#818CF8" />
-                        </Border>
-                    </Grid>
-
-                    <!-- Dynamic audio level meter when recording -->
-                    <StackPanel Spacing="6" IsVisible="{Binding IsRecordingTestSpeech}">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <TextBlock Grid.Column="0" Text="● Listening..." Foreground="#EF4444" FontWeight="SemiBold" FontSize="12" />
-                            <ProgressBar Grid.Column="1"
-                                         Margin="12,0"
-                                         Minimum="0" Maximum="1"
-                                         Value="{Binding TestAudioLevel}"
-                                         Height="8"
-                                         VerticalAlignment="Center"
-                                         CornerRadius="4"
-                                         Foreground="#EF4444" />
-                            <TextBlock Grid.Column="2" Text="{Binding CurrentMicrophoneText}" FontSize="11" Foreground="#64748B" />
-                        </Grid>
+                                IsVisible="{Binding !IsListening}" />
+                        <Border Width="7" Height="7"
+                                CornerRadius="3.5"
+                                Background="{StaticResource RecordingDotBrush}"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding IsListening}" />
+                        <TextBlock Text="Ready"
+                                   FontSize="12"
+                                   FontWeight="Medium"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding !IsListening}" />
+                        <TextBlock Text="Listening..."
+                                   FontSize="12"
+                                   FontWeight="Medium"
+                                   Foreground="{StaticResource RecordingDotBrush}"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding IsListening}" />
                     </StackPanel>
 
-                    <!-- Button Action Bar -->
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <!-- 1. Idle State: Start Dictation Button -->
-                        <Button Classes="primary"
-                                IsVisible="{Binding !IsRecordingTestSpeech}"
-                                IsEnabled="{Binding !IsTranscribingTestSpeech}"
-                                Command="{Binding StartTestSpeechCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="🎙️" FontSize="14" VerticalAlignment="Center" />
-                                <TextBlock Text="Start Speaking" FontWeight="SemiBold" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-
-                        <!-- 2. Recording State: Finish Button -->
-                        <Button Background="#10B981"
-                                Foreground="White"
-                                FontWeight="SemiBold"
-                                CornerRadius="6"
-                                Padding="16,8"
-                                IsVisible="{Binding IsRecordingTestSpeech}"
-                                Command="{Binding FinishTestSpeechCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="⏹️" FontSize="14" VerticalAlignment="Center" />
-                                <TextBlock Text="Finish &amp; Transcribe" FontWeight="SemiBold" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-
-                        <!-- Cancel Button during recording -->
-                        <Button Classes="secondary"
-                                Content="Cancel"
-                                IsVisible="{Binding IsRecordingTestSpeech}"
-                                Command="{Binding CancelTestSpeechCommand}" />
-
-                        <!-- Transcribing Indicator -->
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
-                                    IsVisible="{Binding IsTranscribingTestSpeech}">
-                            <Border Width="12" Height="12" CornerRadius="6" BorderBrush="#38BDF8" BorderThickness="2" />
-                            <TextBlock Text="Transcribing with Gemini API..." Foreground="#38BDF8" FontWeight="Medium" FontSize="13" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <!-- Transcription Result Box -->
-                    <StackPanel Spacing="8" IsVisible="{Binding HasTestResult}">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="TRANSCRIPTION RESULT" FontSize="10.5" FontWeight="Bold" Foreground="#64748B" />
-                            <TextBlock Grid.Column="1" Text="{Binding TestSpeechLatencyInfo}" FontSize="11" Foreground="#10B981" />
-                        </Grid>
-                        <TextBox Text="{Binding TestTranscriptionResult}"
-                                 IsReadOnly="True"
-                                 TextWrapping="Wrap"
-                                 AcceptsReturn="True"
-                                 MinHeight="70"
-                                 MaxHeight="180"
-                                 FontSize="13.5"
-                                 CornerRadius="6"
-                                 Background="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                            <Button Classes="secondary"
-                                    Content="📋 Copy to Clipboard"
-                                    Command="{Binding CopyTestTranscriptionCommand}" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <!-- Toggle Debug View Button & Error Banner -->
-                    <StackPanel Spacing="8" Margin="0,4,0,0">
-                        <Grid ColumnDefinitions="*,Auto,Auto">
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
-                                        IsVisible="{Binding HasDebugError}">
-                                <TextBlock Text="⚠️ Error occurred during test" FontWeight="SemiBold" Foreground="#EF4444" FontSize="12" VerticalAlignment="Center" />
-                            </StackPanel>
-
-                            <Button Grid.Column="1"
-                                    Classes="secondary"
-                                    Padding="10,4"
-                                    FontSize="11.5"
-                                    Command="{Binding ToggleDebugViewCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="🐞" FontSize="11" VerticalAlignment="Center" />
-                                    <TextBlock Text="Debug &amp; Logs" FontSize="11.5" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-
-                            <Button Grid.Column="2"
-                                    Margin="6,0,0,0"
-                                    Classes="secondary"
-                                    Padding="10,4"
-                                    FontSize="11.5"
-                                    ToolTip.Tip="Open voiceflow.log file in default viewer"
-                                    Command="{Binding OpenLogFileCommand}">
-                                <TextBlock Text="📂 Open Log" FontSize="11.5" />
-                            </Button>
-                        </Grid>
-
-                        <!-- Expandable Debug Details Box -->
-                        <Border IsVisible="{Binding IsDebugViewVisible}"
-                                Background="#121218"
-                                BorderBrush="#3F3F46"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="12">
-                            <StackPanel Spacing="8">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" Text="DEBUG &amp; DIAGNOSTIC REPORT" FontSize="11" FontWeight="Bold" Foreground="#A1A1AA" />
-                                    <Button Grid.Column="1"
-                                            Classes="secondary"
-                                            Padding="10,4"
-                                            FontSize="11"
-                                            Command="{Binding CopyDetailedErrorCommand}">
-                                        <TextBlock Text="📋 Copy Full Debug Report" FontWeight="SemiBold" />
-                                    </Button>
-                                </Grid>
-
-                                <TextBox Text="{Binding DetailedErrorSummary}"
-                                         IsReadOnly="True"
-                                         FontFamily="Consolas, monospace"
-                                         FontSize="11.5"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
-                                         MinHeight="120"
-                                         MaxHeight="220"
-                                         Background="#18181B"
-                                         Foreground="#E4E4E7"
-                                         BorderBrush="#27272A" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                    <TextBlock Text="VoiceFlow for Windows v1.0.0"
+                               FontSize="11"
+                               Foreground="{StaticResource TextMutedBrush}" />
                 </StackPanel>
-            </Border>
+            </Grid>
+        </Border>
 
-            <!-- TRANSCRIPTION & API SECTION -->
-            <TextBlock Text="TRANSCRIPTION &amp; API" Classes="sectionHeader" />
-            <Border Classes="card">
-                <StackPanel Spacing="12">
-                    <Grid ColumnDefinitions="140,*">
-                        <TextBlock Grid.Column="0" Text="Provider" VerticalAlignment="Center" FontWeight="Medium" />
-                        <ComboBox Grid.Column="1"
-                                  ItemsSource="{Binding AvailableProviders}"
-                                  SelectedItem="{Binding SelectedProvider}"
-                                  HorizontalAlignment="Stretch" />
-                    </Grid>
+        <!-- ============================================== -->
+        <!-- MAIN CONTENT AREA                              -->
+        <!-- ============================================== -->
+        <Panel Grid.Column="1" Background="{StaticResource CanvasBgBrush}">
+            <views:HomeView IsVisible="{Binding IsHomeSelected}" />
+            <views:HistoryView IsVisible="{Binding IsHistorySelected}" />
+            <views:SettingsView IsVisible="{Binding IsSettingsSelected}" />
+            <views:AboutView IsVisible="{Binding IsAboutSelected}" />
+        </Panel>
 
-                    <Grid ColumnDefinitions="140,*">
-                        <TextBlock Grid.Column="0" Text="Gemini Model" VerticalAlignment="Center" FontWeight="Medium" />
-                        <ComboBox Grid.Column="1"
-                                  ItemsSource="{Binding AvailableModels}"
-                                  SelectedItem="{Binding SelectedModel}"
-                                  HorizontalAlignment="Stretch" />
-                    </Grid>
-
-                    <Grid ColumnDefinitions="140,*,Auto,Auto,Auto">
-                        <TextBlock Grid.Column="0" Text="API Key" VerticalAlignment="Center" FontWeight="Medium" />
-                        <TextBox Grid.Column="1"
-                                 Text="{Binding ApiKeyInput, Mode=TwoWay}"
-                                 PasswordChar="{Binding ApiKeyPasswordChar}"
-                                 Watermark="Paste your Gemini API key (e.g. AIzaSy...)"
-                                 VerticalAlignment="Center" />
-                        <!-- Reveal / Mask Eye Toggle -->
-                        <Button Grid.Column="2"
-                                Margin="6,0,0,0"
-                                Classes="secondary"
-                                Padding="8,6"
-                                ToolTip.Tip="Show / Hide API Key"
-                                Command="{Binding ToggleRevealApiKeyCommand}">
-                            <TextBlock Text="{Binding RevealButtonIcon}"
-                                       FontSize="12" />
-                        </Button>
-                        <!-- Paste from Clipboard Button -->
-                        <Button Grid.Column="3"
-                                Margin="4,0,0,0"
-                                Classes="secondary"
-                                Padding="8,6"
-                                ToolTip.Tip="Paste API key from clipboard"
-                                Command="{Binding PasteApiKeyFromClipboardCommand}">
-                            <TextBlock Text="📋" FontSize="12" />
-                        </Button>
-                        <!-- Clear Button -->
-                        <Button Grid.Column="4"
-                                Margin="4,0,0,0"
-                                Classes="secondary"
-                                Padding="8,6"
-                                ToolTip.Tip="Clear API key"
-                                Command="{Binding ClearApiKeyCommand}">
-                            <TextBlock Text="✕" FontSize="12" />
-                        </Button>
-                    </Grid>
-
-                    <!-- Action Buttons -->
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
-                        <Button Classes="primary"
-                                Content="Save API Key"
-                                Command="{Binding SaveApiKeyCommand}" />
-                        <Button Classes="secondary"
-                                Command="{Binding TestConnectionCommand}"
-                                IsEnabled="{Binding !IsTestingConnection}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="⚡" IsVisible="{Binding !IsTestingConnection}" VerticalAlignment="Center" />
-                                <TextBlock Text="◌" IsVisible="{Binding IsTestingConnection}" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding TestConnectionButtonText}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-
-                    <!-- Connection Status Feedback -->
-                    <TextBlock Text="{Binding ConnectionStatusMessage}"
-                               FontSize="12.5"
-                               FontWeight="Medium"
-                               Foreground="{Binding ConnectionStatusColor}"
-                               IsVisible="{Binding ConnectionStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                </StackPanel>
-            </Border>
-
-            <!-- MICROPHONE SECTION -->
-            <TextBlock Text="MICROPHONE" Classes="sectionHeader" />
-            <Border Classes="card">
-                <StackPanel Spacing="12">
-                    <Grid ColumnDefinitions="140,*,Auto">
-                        <TextBlock Grid.Column="0" Text="Input Device" VerticalAlignment="Center" FontWeight="Medium" />
-                        <ComboBox Grid.Column="1"
-                                  ItemsSource="{Binding AudioDevices}"
-                                  SelectedItem="{Binding SelectedAudioDevice}"
-                                  HorizontalAlignment="Stretch" />
-                        <Button Grid.Column="2"
-                                Content="⟳"
-                                ToolTip.Tip="Refresh audio devices"
-                                Margin="8,0,0,0"
-                                Command="{Binding RefreshAudioDevices}" />
-                    </Grid>
-
-                    <!-- Mic Test Bar -->
-                    <Grid ColumnDefinitions="140,*,Auto">
-                        <TextBlock Grid.Column="0" Text="Input Level" VerticalAlignment="Center" FontWeight="Medium" />
-                        <ProgressBar Grid.Column="1"
-                                     Minimum="0" Maximum="1"
-                                     Value="{Binding MicTestLevel}"
-                                     Height="8"
-                                     VerticalAlignment="Center"
-                                     CornerRadius="4"
-                                     Foreground="#10B981" />
-                        <Button Grid.Column="2"
-                                Margin="10,0,0,0"
-                                Classes="secondary"
-                                Content="{Binding IsTestingMic, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=True, FallbackValue='Test Mic'}"
-                                Command="{Binding ToggleMicrophoneTestCommand}" />
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <!-- SHORTCUT SECTION -->
-            <TextBlock Text="GLOBAL SHORTCUT" Classes="sectionHeader" />
-            <Border Classes="card">
-                <StackPanel Spacing="12">
-                    <Grid ColumnDefinitions="140,*,Auto">
-                        <TextBlock Grid.Column="0" Text="Shortcut Preset" VerticalAlignment="Center" FontWeight="Medium" />
-                        <ComboBox Grid.Column="1"
-                                  ItemsSource="{Binding PresetShortcuts}"
-                                  SelectedItem="{Binding CurrentShortcutText}"
-                                  HorizontalAlignment="Stretch" />
-                        <Button Grid.Column="2"
-                                Margin="8,0,0,0"
-                                Classes="secondary"
-                                Content="Apply"
-                                Command="{Binding SetPresetShortcutCommand}"
-                                CommandParameter="{Binding CurrentShortcutText}" />
-                    </Grid>
-
-                    <Grid ColumnDefinitions="140,*">
-                        <TextBlock Grid.Column="0" Text="Activation Mode" VerticalAlignment="Center" FontWeight="Medium" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
-                            <RadioButton Content="Hold to Talk (Recommended)"
-                                         IsChecked="{Binding SelectedHotkeyMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:HotkeyActivationMode.HoldToTalk}}" />
-                            <RadioButton Content="Toggle"
-                                         IsChecked="{Binding SelectedHotkeyMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:HotkeyActivationMode.Toggle}}" />
-                        </StackPanel>
-                    </Grid>
-
-                    <TextBlock Text="{Binding HotkeyRegistrationError}"
-                               Foreground="#EF4444"
-                               FontSize="12"
-                               IsVisible="{Binding HotkeyRegistrationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                </StackPanel>
-            </Border>
-
-            <!-- AI CLEANUP SECTION -->
-            <TextBlock Text="AI TEXT CLEANUP" Classes="sectionHeader" />
-            <Border Classes="card">
-                <StackPanel Spacing="12">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Enable AI Text Cleanup" FontWeight="Medium" />
-                            <TextBlock Text="Cleans verbal fillers and refines sentence boundaries" FontSize="11.5" Foreground="#64748B" />
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="1"
-                                      IsChecked="{Binding CleanupEnabled}"
-                                      OnContent="" OffContent="" />
-                    </Grid>
-
-                    <Grid ColumnDefinitions="140,*" IsVisible="{Binding CleanupEnabled}">
-                        <TextBlock Grid.Column="0" Text="Cleanup Mode" VerticalAlignment="Center" FontWeight="Medium" />
-                        <StackPanel Grid.Column="1" Spacing="8">
-                            <RadioButton Content="Clean Transcription (Fixes fillers, stuttering &amp; punctuation)"
-                                         IsChecked="{Binding CleanupMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:TextCleanupMode.CleanTranscription}}" />
-                            <RadioButton Content="Smart Formatting (Structures dictation into concise lists/paragraphs)"
-                                         IsChecked="{Binding CleanupMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:TextCleanupMode.SmartFormatting}}" />
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <!-- BEHAVIOR & SYSTEM SECTION -->
-            <TextBlock Text="BEHAVIOR &amp; SYSTEM" Classes="sectionHeader" />
-            <Border Classes="card">
-                <StackPanel Spacing="10">
-                    <CheckBox Content="Automatically paste transcribed text into active window"
-                              IsChecked="{Binding AutoPaste}" />
-
-                    <CheckBox Content="Preserve existing clipboard contents before pasting"
-                              IsChecked="{Binding PreserveClipboard}" />
-
-                    <CheckBox Content="Show floating recording indicator overlay"
-                              IsChecked="{Binding ShowOverlay}" />
-
-                    <CheckBox Content="Keep running in background when closed (minimize to tray)"
-                              IsChecked="{Binding RunInBackground}" />
-
-                    <CheckBox Content="Start application with Windows"
-                              IsChecked="{Binding StartWithWindows}" />
-
-                    <Grid ColumnDefinitions="140,*" Margin="0,4,0,0">
-                        <TextBlock Grid.Column="0" Text="App Theme" VerticalAlignment="Center" FontWeight="Medium" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
-                            <RadioButton Content="System"
-                                         IsChecked="{Binding SelectedTheme, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ThemePreference.System}}" />
-                            <RadioButton Content="Dark"
-                                         IsChecked="{Binding SelectedTheme, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ThemePreference.Dark}}" />
-                            <RadioButton Content="Light"
-                                         IsChecked="{Binding SelectedTheme, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:ThemePreference.Light}}" />
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <!-- PRIVACY & ABOUT SECTION -->
-            <TextBlock Text="PRIVACY" Classes="sectionHeader" />
-            <Border Classes="card">
-                <StackPanel Spacing="6">
-                    <TextBlock Text="Your privacy is fully protected:" FontWeight="SemiBold" FontSize="12.5" />
-                    <TextBlock Text="• Microphone audio is processed in-memory and deleted immediately after transcription."
-                               FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
-                    <TextBlock Text="• No telemetry, background tracking, analytics, or third-party servers."
-                               FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
-                    <TextBlock Text="• API keys are encrypted using native Windows DPAPI (ProtectedData)."
-                               FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-
-            <!-- SAVE BUTTON -->
-            <Button Classes="primary"
-                    HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center"
-                    Margin="0,8,0,0"
-                    Padding="0,10"
-                    FontSize="14"
-                    Content="Apply All Settings"
-                    Command="{Binding SaveAllSettingsCommand}" />
-
-        </StackPanel>
-    </ScrollViewer>
+    </Grid>
 </Window>
