@@ -28,6 +28,23 @@ public static class AppLogger
         Write("ERROR", text);
     }
 
+    private static readonly System.Collections.Generic.Queue<string> RecentLogsQueue = new();
+    private const int MaxLogQueueSize = 100;
+
+    public static string LogFilePath => LogFile;
+
+    public static System.Collections.Generic.IReadOnlyList<string> GetRecentLogs(int count = 50)
+    {
+        lock (LockObj)
+        {
+            var arr = RecentLogsQueue.ToArray();
+            if (arr.Length <= count) return arr;
+            var result = new string[count];
+            Array.Copy(arr, arr.Length - count, result, 0, count);
+            return result;
+        }
+    }
+
     private static void Write(string level, string message)
     {
         string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
@@ -39,6 +56,12 @@ public static class AppLogger
         {
             lock (LockObj)
             {
+                RecentLogsQueue.Enqueue(line);
+                while (RecentLogsQueue.Count > MaxLogQueueSize)
+                {
+                    RecentLogsQueue.Dequeue();
+                }
+
                 File.AppendAllText(LogFile, line + Environment.NewLine);
             }
         }

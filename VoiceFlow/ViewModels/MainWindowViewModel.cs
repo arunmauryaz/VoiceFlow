@@ -68,6 +68,16 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasTestResult;
 
+    // --- Debug & Diagnostics View ---
+    [ObservableProperty]
+    private bool _isDebugViewVisible;
+
+    [ObservableProperty]
+    private bool _hasDebugError;
+
+    [ObservableProperty]
+    private string _detailedErrorSummary = string.Empty;
+
     // --- API Setup ---
     [ObservableProperty]
     private string _apiKeyInput = string.Empty;
@@ -498,6 +508,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (!result.Success)
             {
                 TestSpeechStatus = $"Transcription failed: {result.ErrorMessage}";
+                BuildDetailedError("Transcription Failed", result.ErrorMessage ?? "Unknown transcription failure", null);
                 IsTranscribingTestSpeech = false;
                 return;
             }
@@ -513,6 +524,7 @@ public partial class MainWindowViewModel : ViewModelBase
             sw.Stop();
             TestTranscriptionResult = text;
             HasTestResult = true;
+            HasDebugError = false;
             TestSpeechLatencyInfo = $"✓ Transcribed in {sw.ElapsedMilliseconds}ms ({SelectedModel})";
             TestSpeechStatus = "Transcription complete!";
         }
@@ -520,10 +532,103 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             AppLogger.LogError("Error in test speech transcription.", ex);
             TestSpeechStatus = $"Error: {ex.Message}";
+            BuildDetailedError("Exception during Speech Test", ex.Message, ex);
         }
         finally
         {
             IsTranscribingTestSpeech = false;
+        }
+    }
+
+    private void BuildDetailedError(string category, string message, Exception? ex)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"=== VOICEFLOW ERROR REPORT ===");
+        sb.AppendLine($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
+        sb.AppendLine($"Category: {category}");
+        sb.AppendLine($"Error Message: {message}");
+        sb.AppendLine();
+        sb.AppendLine($"--- ENVIRONMENT & CONFIGURATION ---");
+        sb.AppendLine($"Microphone: {SelectedAudioDevice?.Name ?? "Default"} (Index: {SelectedAudioDevice?.DeviceNumber})");
+        sb.AppendLine($"Target Model: {SelectedModel}");
+        sb.AppendLine($"Has API Key: {_settingsService.HasApiKey}");
+        sb.AppendLine($"AI Cleanup Enabled: {CleanupEnabled} (Mode: {CleanupMode})");
+        sb.AppendLine();
+
+        if (ex != null)
+        {
+            sb.AppendLine($"--- EXCEPTION DETAILS ---");
+            sb.AppendLine($"Type: {ex.GetType().FullName}");
+            sb.AppendLine($"Message: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                sb.AppendLine($"Inner Exception: {ex.InnerException.GetType().FullName}: {ex.InnerException.Message}");
+            }
+            sb.AppendLine();
+            sb.AppendLine($"--- STACK TRACE ---");
+            sb.AppendLine(ex.StackTrace ?? "No stack trace available.");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine($"--- RECENT LOGS (Last 25 events) ---");
+        var recentLogs = AppLogger.GetRecentLogs(25);
+        if (recentLogs.Count > 0)
+        {
+            foreach (var log in recentLogs)
+            {
+                sb.AppendLine(log);
+            }
+        }
+        else
+        {
+            sb.AppendLine("No recent logs recorded.");
+        }
+
+        DetailedErrorSummary = sb.ToString();
+        HasDebugError = true;
+        IsDebugViewVisible = true; // Automatically expand debug view so user can see and copy it!
+    }
+
+    [RelayCommand]
+    private void ToggleDebugView()
+    {
+        IsDebugViewVisible = !IsDebugViewVisible;
+        if (IsDebugViewVisible && string.IsNullOrEmpty(DetailedErrorSummary))
+        {
+            // Populate with current state diagnostics even if no error
+            BuildDetailedError("Current State Diagnostics", "User opened debug viewer.", null);
+            HasDebugError = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task CopyDetailedErrorAsync()
+    {
+        if (!string.IsNullOrEmpty(DetailedErrorSummary))
+        {
+            await _clipboardService.SetTextAsync(DetailedErrorSummary);
+            TestSpeechStatus = "✓ Copied complete debug report to clipboard!";
+        }
+    }
+
+    [RelayCommand]
+    private void OpenLogFile()
+    {
+        try
+        {
+            string path = AppLogger.LogFilePath;
+            if (System.IO.File.Exists(path))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Failed to open log file.", ex);
         }
     }
 

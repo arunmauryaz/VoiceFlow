@@ -187,7 +187,8 @@ public class AudioRecorder : IAudioRecorder
         var outputStream = new MemoryStream();
 
         var waveFormat = new WaveFormat(16000, 16, 1);
-        using (var writer = new WaveFileWriter(outputStream, waveFormat))
+        using (var nonClosing = new VoiceFlow.Helpers.IgnoreDisposeStream(outputStream))
+        using (var writer = new WaveFileWriter(nonClosing, waveFormat))
         {
             writer.Write(rawBytes, 0, rawBytes.Length);
             writer.Flush();

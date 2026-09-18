@@ -167,4 +167,58 @@ public class ComponentTests
         Assert.Equal(string.Empty, vm.TestTranscriptionResult);
         Assert.Contains("Start Speaking", vm.TestSpeechStatus);
     }
+
+    [Fact]
+    public void IgnoreDisposeStream_PreventsUnderlyingStreamFromClosing()
+    {
+        var memStream = new MemoryStream();
+        using (var nonClosing = new VoiceFlow.Helpers.IgnoreDisposeStream(memStream))
+        using (var writer = new NAudio.Wave.WaveFileWriter(nonClosing, new NAudio.Wave.WaveFormat(16000, 16, 1)))
+        {
+            byte[] dummyData = new byte[100];
+            writer.Write(dummyData, 0, dummyData.Length);
+            writer.Flush();
+        }
+
+        // Must still be open, seekable and readable without ObjectDisposedException
+        Assert.True(memStream.CanRead);
+        Assert.True(memStream.CanSeek);
+        memStream.Position = 0;
+        Assert.True(memStream.Length > 0);
+
+        byte[] readBack = memStream.ToArray();
+        Assert.True(readBack.Length > 100); // 100 bytes data + 44 bytes WAV RIFF header
+    }
+
+    [Fact]
+    public void DebugView_Toggle_PopulatesDiagnosticsReport()
+    {
+        var settings = new MockSettingsService();
+        var audioRecorder = new AudioRecorder();
+        var provider = new GeminiTranscriptionProvider(settings);
+        var processor = new GeminiTextProcessor(settings);
+        var hotkey = new WindowsHotkeyService();
+        var clipboard = new WindowsClipboardService();
+        var startup = new WindowsStartupService();
+        var overlay = new RecordingOverlayViewModel();
+        var textInjection = new WindowsTextInjectionService(clipboard);
+        var stateManager = new AppStateManager(settings, audioRecorder, provider, processor, hotkey, textInjection, clipboard, overlay);
+
+        var vm = new MainWindowViewModel(
+            settings,
+            audioRecorder,
+            provider,
+            processor,
+            hotkey,
+            clipboard,
+            startup,
+            stateManager);
+
+        Assert.False(vm.IsDebugViewVisible);
+        vm.ToggleDebugViewCommand.Execute(null);
+
+        Assert.True(vm.IsDebugViewVisible);
+        Assert.False(string.IsNullOrEmpty(vm.DetailedErrorSummary));
+        Assert.Contains("VOICEFLOW ERROR REPORT", vm.DetailedErrorSummary);
+    }
 }
