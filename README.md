@@ -80,9 +80,9 @@ Whenever you trigger your global shortcut, VoiceFlow captures high-fidelity audi
 ## 🚀 Quick Start
 
 ### 1. Download & Launch
-1. Download the latest `VoiceFlow-win-x64.zip` from the [GitHub Releases](https://github.com/arunmauryaz/VoiceFlow/releases) tab.
-2. Extract the archive to your preferred folder.
-3. Run `VoiceFlow.exe`.
+Choose the package that best fits your workflow:
+- 🚀 **Windows Installer (Recommended)**: Download **`VoiceFlow-v1.0.0-Setup.exe`** from [GitHub Releases](https://github.com/arunmauryaz/VoiceFlow/releases). Runs a quick setup wizard, creates Start Menu & Desktop shortcuts, and enables seamless system integration.
+- 📦 **Portable ZIP**: Download **`VoiceFlow-v1.0.0-win-x64.zip`** from [GitHub Releases](https://github.com/arunmauryaz/VoiceFlow/releases), extract to any folder, and double-click `VoiceFlow.exe` to run anywhere without installation.
 
 ### 2. Enter Gemini API Key
 1. In the VoiceFlow navigation sidebar, open **Settings**.
