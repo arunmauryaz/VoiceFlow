@@ -273,15 +273,30 @@ public partial class MainWindowViewModel : ViewModelBase
     // Slot 1 = leftmost, Slot 3 = rightmost. Empty slots are skipped.
     [ObservableProperty]
     private string _slot1Text = string.Empty;
-    partial void OnSlot1TextChanged(string value) => OnPropertyChanged(nameof(HasSlot1Key));
+    partial void OnSlot1TextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasSlot1Key));
+        OnPropertyChanged(nameof(HasAnySlotKey));
+    }
 
     [ObservableProperty]
     private string _slot2Text = string.Empty;
-    partial void OnSlot2TextChanged(string value) => OnPropertyChanged(nameof(HasSlot2Key));
+    partial void OnSlot2TextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasSlot2Key));
+        OnPropertyChanged(nameof(HasAnySlotKey));
+    }
 
     [ObservableProperty]
     private string _slot3Text = string.Empty;
-    partial void OnSlot3TextChanged(string value) => OnPropertyChanged(nameof(HasSlot3Key));
+    partial void OnSlot3TextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasSlot3Key));
+        OnPropertyChanged(nameof(HasAnySlotKey));
+    }
+
+    [ObservableProperty]
+    private bool _isShortcutSavedAndActive = true;
 
     // -1 = none recording, 0/1/2 = slot index being recorded
     [ObservableProperty]
@@ -307,6 +322,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool HasSlot1Key => !string.IsNullOrEmpty(Slot1Text);
     public bool HasSlot2Key => !string.IsNullOrEmpty(Slot2Text);
     public bool HasSlot3Key => !string.IsNullOrEmpty(Slot3Text);
+    public bool HasAnySlotKey => !string.IsNullOrEmpty(Slot1Text) || !string.IsNullOrEmpty(Slot2Text) || !string.IsNullOrEmpty(Slot3Text);
 
     // Keep IsRecordingShortcut for backwards-compat on HomeView bindings (always false now)
     [ObservableProperty]
@@ -987,7 +1003,17 @@ public partial class MainWindowViewModel : ViewModelBase
             case 1: _slot2Vk = 0; Slot2Text = string.Empty; break;
             case 2: _slot3Vk = 0; Slot3Text = string.Empty; break;
         }
-        ApplySlotsAsHotkey();
+        IsShortcutSavedAndActive = false;
+        if (HasAnySlotKey)
+        {
+            ShortcutStatusFeedback = "Key removed. Click 'Save & Activate' to apply changes.";
+            ShortcutStatusColor = "#3B82F6";
+        }
+        else
+        {
+            ShortcutStatusFeedback = "All boxes cleared. Add at least 1 key.";
+            ShortcutStatusColor = "#F59E0B";
+        }
     }
 
     [RelayCommand]
@@ -1009,6 +1035,12 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void SaveAndActivateShortcut()
+    {
+        ApplySlotsAsHotkey();
+    }
+
+    [RelayCommand]
     private void ResetDefaultShortcut()
     {
         _hotkeyService.StopCapturingSingleKey();
@@ -1021,7 +1053,8 @@ public partial class MainWindowViewModel : ViewModelBase
         CurrentShortcutText = KeyFormattingHelper.FormatHotkey(def);
         UpdateShortcutKeyDisplay(def);
         bool success = _hotkeyService.RegisterHotkey(def, SelectedHotkeyMode);
-        ShortcutStatusFeedback = success ? "✓ Reset to default (Ctrl + Space)." : "✕ Could not register default shortcut.";
+        IsShortcutSavedAndActive = success;
+        ShortcutStatusFeedback = success ? "✓ Reset to default (Ctrl + Space) and activated!" : "✕ Could not register default shortcut.";
         ShortcutStatusColor = success ? "#10B981" : "#E11D48";
         HotkeyRegistrationError = success ? string.Empty : "✕ Default shortcut is currently unavailable.";
     }
@@ -1059,7 +1092,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 case 2: _slot3Vk = vk; Slot3Text = keyText; break;
             }
 
-            ApplySlotsAsHotkey();
+            IsShortcutSavedAndActive = false;
+            ShortcutStatusFeedback = $"Box {slot + 1} set to [{keyText}]. Click 'Save & Activate' to apply.";
+            ShortcutStatusColor = "#3B82F6";
         });
     }
 
@@ -1073,8 +1108,9 @@ public partial class MainWindowViewModel : ViewModelBase
         var vks = new[] { _slot1Vk, _slot2Vk, _slot3Vk }.Where(v => v != 0).ToArray();
         if (vks.Length == 0)
         {
-            ShortcutStatusFeedback = "All slots cleared. Fill at least one slot.";
+            ShortcutStatusFeedback = "All boxes are empty. Add at least one key.";
             ShortcutStatusColor = "#F59E0B";
+            IsShortcutSavedAndActive = false;
             return;
         }
 
@@ -1084,6 +1120,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ShortcutStatusFeedback = "✕ This combination is reserved by Windows. Choose another.";
             ShortcutStatusColor = "#E11D48";
+            IsShortcutSavedAndActive = false;
             return;
         }
 
@@ -1100,15 +1137,17 @@ public partial class MainWindowViewModel : ViewModelBase
             ShortcutMainKeyText = parts.Last();
             string action = SelectedHotkeyMode == HotkeyActivationMode.HoldToTalk ? "Hold" : "Press";
             DictationInstructionTitle = $"{action} {formatted} to dictate";
-            ShortcutStatusFeedback = $"✓ Shortcut [{formatted}] saved!";
+            ShortcutStatusFeedback = $"✓ Shortcut [{formatted}] is now active and ready to use!";
             ShortcutStatusColor = "#10B981";
             HotkeyRegistrationError = string.Empty;
+            IsShortcutSavedAndActive = true;
         }
         else
         {
             _hotkeyService.RegisterHotkey(_settingsService.Settings.Hotkey, SelectedHotkeyMode);
             ShortcutStatusFeedback = "✕ Windows rejected this shortcut. It may be in use by another app.";
             ShortcutStatusColor = "#E11D48";
+            IsShortcutSavedAndActive = false;
         }
     }
 

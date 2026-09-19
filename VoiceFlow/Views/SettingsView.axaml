@@ -479,6 +479,38 @@
                             </Border>
                         </StackPanel>
 
+                        <!-- Save & Activate Action Button Row -->
+                        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,4,0,2">
+                            <!-- Pending Activation: Prominent Primary Button -->
+                            <Button Classes="primary"
+                                    Command="{Binding SaveAndActivateShortcutCommand}"
+                                    IsEnabled="{Binding HasAnySlotKey}"
+                                    Padding="18,8"
+                                    CornerRadius="8"
+                                    Cursor="Hand"
+                                    ToolTip.Tip="Save and activate this shortcut"
+                                    IsVisible="{Binding !IsShortcutSavedAndActive}">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <TextBlock Text="⚡" FontSize="13" />
+                                    <TextBlock Text="Save &amp; Activate Shortcut" FontSize="13" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Saved & Active: Subtle Confirmation Indicator Button -->
+                            <Button Classes="secondary"
+                                    Command="{Binding SaveAndActivateShortcutCommand}"
+                                    Padding="14,7"
+                                    CornerRadius="8"
+                                    Cursor="Hand"
+                                    ToolTip.Tip="This shortcut is currently active and ready to use. Click to re-verify."
+                                    IsVisible="{Binding IsShortcutSavedAndActive}">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="{StaticResource ReadyStatusBrush}" />
+                                    <TextBlock Text="Shortcut Active" FontSize="12" FontWeight="Medium" Foreground="{StaticResource ReadyStatusBrush}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
                         <!-- Active shortcut label & feedback -->
                         <StackPanel Spacing="3" HorizontalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
