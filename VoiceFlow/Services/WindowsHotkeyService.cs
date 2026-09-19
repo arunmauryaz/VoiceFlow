@@ -223,13 +223,14 @@ public class WindowsHotkeyService : IGlobalHotkeyService
 
             if (isKeyDown)
             {
-                if (vk == _config.VirtualKey && AreModifiersActive(_config.Modifiers, vk))
+                if (IsHotkeyTriggered(vk))
                 {
                     if (_mode == HotkeyActivationMode.HoldToTalk)
                     {
                         if (!_isHotkeyHeld)
                         {
                             _isHotkeyHeld = true;
+                            AppLogger.LogInfo($"Hotkey [{_config}] TRIGGERED (Hold to talk).");
                             HotkeyPressed?.Invoke(this, EventArgs.Empty);
                         }
                     }
@@ -238,13 +239,22 @@ public class WindowsHotkeyService : IGlobalHotkeyService
                         if (!_isToggledOn)
                         {
                             _isToggledOn = true;
+                            AppLogger.LogInfo($"Hotkey [{_config}] TOGGLED ON.");
                             HotkeyPressed?.Invoke(this, EventArgs.Empty);
                         }
                         else
                         {
                             _isToggledOn = false;
+                            AppLogger.LogInfo($"Hotkey [{_config}] TOGGLED OFF.");
                             HotkeyReleased?.Invoke(this, EventArgs.Empty);
                         }
+                    }
+
+                    // Suppress key event for modifier keys, Windows keys, or Space so Windows
+                    // doesn't trigger OS actions (e.g. Start Menu on Win key, space char insertion)
+                    if (IsModifierKey(vk) || vk == Win32Constants.VK_SPACE)
+                    {
+                        return (IntPtr)1;
                     }
                 }
             }
@@ -252,11 +262,16 @@ public class WindowsHotkeyService : IGlobalHotkeyService
             {
                 if (_mode == HotkeyActivationMode.HoldToTalk && _isHotkeyHeld)
                 {
-                    // If target key was released OR a required modifier was released
-                    if (vk == _config.VirtualKey || IsRequiredModifierReleased(vk, _config.Modifiers))
+                    if (IsHotkeyReleased(vk))
                     {
                         _isHotkeyHeld = false;
+                        AppLogger.LogInfo($"Hotkey [{_config}] RELEASED.");
                         HotkeyReleased?.Invoke(this, EventArgs.Empty);
+
+                        if (IsModifierKey(vk) || vk == Win32Constants.VK_SPACE)
+                        {
+                            return (IntPtr)1;
+                        }
                     }
                 }
             }
@@ -265,18 +280,96 @@ public class WindowsHotkeyService : IGlobalHotkeyService
         return Win32PInvoke.CallNextHookEx(_hookId, nCode, wParam, lParam);
     }
 
+    private static bool IsKeyDown(int vKey) => (Win32PInvoke.GetAsyncKeyState(vKey) & 0x8000) != 0;
+    private static bool IsCtrlDown() => IsKeyDown(Win32Constants.VK_CONTROL) || IsKeyDown(Win32Constants.VK_LCONTROL) || IsKeyDown(Win32Constants.VK_RCONTROL);
+    private static bool IsAltDown() => IsKeyDown(Win32Constants.VK_MENU) || IsKeyDown(Win32Constants.VK_LMENU) || IsKeyDown(Win32Constants.VK_RMENU);
+    private static bool IsShiftDown() => IsKeyDown(Win32Constants.VK_SHIFT) || IsKeyDown(Win32Constants.VK_LSHIFT) || IsKeyDown(Win32Constants.VK_RSHIFT);
+    private static bool IsWinDown() => IsKeyDown(Win32Constants.VK_LWIN) || IsKeyDown(Win32Constants.VK_RWIN);
+
+    private bool IsHotkeyTriggered(uint incomingVk)
+    {
+        // 1. Query physical state of all modifier keys
+        bool ctrlDown = IsCtrlDown() || incomingVk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3;
+        bool altDown = IsAltDown() || incomingVk is Win32Constants.VK_MENU or 0xA4 or 0xA5;
+        bool shiftDown = IsShiftDown() || incomingVk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1;
+        bool winDown = IsWinDown() || incomingVk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
+
+        // 2. Determine all modifier groups required by the entire hotkey configuration
+        // (including when the VirtualKey itself is a modifier, e.g. Ctrl + Win)
+        KeyModifiers totalRequiredMods = _config.Modifiers;
+        if (_config.VirtualKey is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) totalRequiredMods |= KeyModifiers.Control;
+        if (_config.VirtualKey is Win32Constants.VK_MENU or 0xA4 or 0xA5) totalRequiredMods |= KeyModifiers.Alt;
+        if (_config.VirtualKey is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) totalRequiredMods |= KeyModifiers.Shift;
+        if (_config.VirtualKey is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) totalRequiredMods |= KeyModifiers.Windows;
+
+        // Check required modifiers are pressed
+        if (totalRequiredMods.HasFlag(KeyModifiers.Control) && !ctrlDown) return false;
+        if (totalRequiredMods.HasFlag(KeyModifiers.Alt) && !altDown) return false;
+        if (totalRequiredMods.HasFlag(KeyModifiers.Shift) && !shiftDown) return false;
+        if (totalRequiredMods.HasFlag(KeyModifiers.Windows) && !winDown) return false;
+
+        // Check unrequired modifiers are NOT pressed
+        if (!totalRequiredMods.HasFlag(KeyModifiers.Control) && ctrlDown) return false;
+        if (!totalRequiredMods.HasFlag(KeyModifiers.Alt) && altDown) return false;
+        if (!totalRequiredMods.HasFlag(KeyModifiers.Shift) && shiftDown) return false;
+        if (!totalRequiredMods.HasFlag(KeyModifiers.Windows) && winDown) return false;
+
+        // 3. For non-modifier trigger keys (e.g. F8, Space), the incoming key MUST be that exact key
+        if (!IsModifierKey(_config.VirtualKey))
+        {
+            if (!IsVkMatch(incomingVk, _config.VirtualKey)) return false;
+        }
+        else
+        {
+            // For all-modifier combos (e.g. Ctrl + Win), the incoming key MUST be one of the required modifiers
+            if (!IsModifierMatch(incomingVk, totalRequiredMods)) return false;
+        }
+
+        return true;
+    }
+
+    private bool IsHotkeyReleased(uint incomingVk)
+    {
+        // For non-modifier keys, releasing the target VirtualKey releases the hotkey
+        if (IsVkMatch(incomingVk, _config.VirtualKey))
+            return true;
+
+        // Or if any required modifier is released
+        KeyModifiers totalRequiredMods = _config.Modifiers;
+        if (_config.VirtualKey is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) totalRequiredMods |= KeyModifiers.Control;
+        if (_config.VirtualKey is Win32Constants.VK_MENU or 0xA4 or 0xA5) totalRequiredMods |= KeyModifiers.Alt;
+        if (_config.VirtualKey is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) totalRequiredMods |= KeyModifiers.Shift;
+        if (_config.VirtualKey is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) totalRequiredMods |= KeyModifiers.Windows;
+
+        return IsModifierMatch(incomingVk, totalRequiredMods);
+    }
+
+    private static bool IsVkMatch(uint pressedVk, uint targetVk)
+    {
+        if (pressedVk == targetVk) return true;
+        if ((pressedVk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) && (targetVk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3)) return true;
+        if ((pressedVk is Win32Constants.VK_MENU or 0xA4 or 0xA5) && (targetVk is Win32Constants.VK_MENU or 0xA4 or 0xA5)) return true;
+        if ((pressedVk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) && (targetVk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1)) return true;
+        if ((pressedVk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) && (targetVk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN)) return true;
+        return false;
+    }
+
+    private static bool IsModifierMatch(uint vk, KeyModifiers required)
+    {
+        if (required.HasFlag(KeyModifiers.Control) && vk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) return true;
+        if (required.HasFlag(KeyModifiers.Alt) && vk is Win32Constants.VK_MENU or 0xA4 or 0xA5) return true;
+        if (required.HasFlag(KeyModifiers.Shift) && vk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) return true;
+        if (required.HasFlag(KeyModifiers.Windows) && vk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) return true;
+        return false;
+    }
+
     private static KeyModifiers GetCurrentModifiers()
     {
         KeyModifiers mods = KeyModifiers.None;
-        if ((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_CONTROL) & 0x8000) != 0)
-            mods |= KeyModifiers.Control;
-        if ((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_MENU) & 0x8000) != 0)
-            mods |= KeyModifiers.Alt;
-        if ((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_SHIFT) & 0x8000) != 0)
-            mods |= KeyModifiers.Shift;
-        if (((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_LWIN) |
-              Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_RWIN)) & 0x8000) != 0)
-            mods |= KeyModifiers.Windows;
+        if (IsCtrlDown()) mods |= KeyModifiers.Control;
+        if (IsAltDown()) mods |= KeyModifiers.Alt;
+        if (IsShiftDown()) mods |= KeyModifiers.Shift;
+        if (IsWinDown()) mods |= KeyModifiers.Windows;
         return mods;
     }
 
@@ -286,50 +379,6 @@ public class WindowsHotkeyService : IGlobalHotkeyService
             or Win32Constants.VK_MENU or Win32Constants.VK_LMENU or Win32Constants.VK_RMENU
             or Win32Constants.VK_SHIFT or Win32Constants.VK_LSHIFT or Win32Constants.VK_RSHIFT
             or Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
-    }
-
-    private static bool AreModifiersActive(KeyModifiers required, uint triggeredVk)
-    {
-        bool ctrlDown = (Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_CONTROL) & 0x8000) != 0;
-        bool altDown = (Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_MENU) & 0x8000) != 0;
-        bool shiftDown = (Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_SHIFT) & 0x8000) != 0;
-        bool winDown = ((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_LWIN) |
-                         Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_RWIN)) & 0x8000) != 0;
-
-        // If the triggered key itself is a modifier, it will be pressed down right now,
-        // so we must exclude it when ensuring no extra modifiers are pressed.
-        bool isTriggerCtrl = triggeredVk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3;
-        bool isTriggerAlt = triggeredVk is Win32Constants.VK_MENU or 0xA4 or 0xA5;
-        bool isTriggerShift = triggeredVk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1;
-        bool isTriggerWin = triggeredVk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
-
-        // All required modifiers must be active
-        if (required.HasFlag(KeyModifiers.Control) && !ctrlDown) return false;
-        if (required.HasFlag(KeyModifiers.Alt) && !altDown) return false;
-        if (required.HasFlag(KeyModifiers.Shift) && !shiftDown) return false;
-        if (required.HasFlag(KeyModifiers.Windows) && !winDown) return false;
-
-        // Unrequired modifiers must NOT be active, unless that modifier IS the triggered key
-        if (!required.HasFlag(KeyModifiers.Control) && ctrlDown && !isTriggerCtrl) return false;
-        if (!required.HasFlag(KeyModifiers.Alt) && altDown && !isTriggerAlt) return false;
-        if (!required.HasFlag(KeyModifiers.Shift) && shiftDown && !isTriggerShift) return false;
-        if (!required.HasFlag(KeyModifiers.Windows) && winDown && !isTriggerWin) return false;
-
-        return true;
-    }
-
-    private static bool IsRequiredModifierReleased(uint vk, KeyModifiers required)
-    {
-        if (required.HasFlag(KeyModifiers.Control) && (vk == Win32Constants.VK_CONTROL || vk == 0xA2 || vk == 0xA3))
-            return true;
-        if (required.HasFlag(KeyModifiers.Alt) && (vk == Win32Constants.VK_MENU || vk == 0xA4 || vk == 0xA5))
-            return true;
-        if (required.HasFlag(KeyModifiers.Shift) && (vk == Win32Constants.VK_SHIFT || vk == 0xA0 || vk == 0xA1))
-            return true;
-        if (required.HasFlag(KeyModifiers.Windows) && (vk == Win32Constants.VK_LWIN || vk == Win32Constants.VK_RWIN))
-            return true;
-
-        return false;
     }
 
     public void Dispose()
