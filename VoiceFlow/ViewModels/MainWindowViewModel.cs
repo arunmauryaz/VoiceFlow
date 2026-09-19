@@ -1059,9 +1059,58 @@ public partial class MainWindowViewModel : ViewModelBase
         HotkeyRegistrationError = success ? string.Empty : "✕ Default shortcut is currently unavailable.";
     }
 
-    // Keep for backwards compat (may be called from old bindings) – no-op now
     [RelayCommand]
-    private void SetPresetShortcut(string preset) { }
+    private void SelectPreset(object? presetParam)
+    {
+        string? preset = presetParam?.ToString();
+        if (string.IsNullOrWhiteSpace(preset)) return;
+
+        _hotkeyService.StopCapturingSingleKey();
+        _hotkeyService.StopRecordingShortcut();
+        ActiveRecordingSlot = -1;
+
+        var config = KeyFormattingHelper.ParseHotkey(preset);
+        if (config == null) return;
+
+        bool success = _hotkeyService.RegisterHotkey(config, SelectedHotkeyMode);
+        if (success)
+        {
+            _settingsService.Settings.Hotkey = config;
+            AutoPersistSettings();
+            CurrentShortcutText = KeyFormattingHelper.FormatHotkey(config);
+            UpdateShortcutKeyDisplay(config);
+            IsShortcutSavedAndActive = true;
+            ShortcutStatusFeedback = $"✓ Preset [{preset}] activated and ready to use!";
+            ShortcutStatusColor = "#10B981";
+            HotkeyRegistrationError = string.Empty;
+        }
+        else
+        {
+            ShortcutStatusFeedback = $"✕ Windows rejected [{preset}]. Choose another preset.";
+            ShortcutStatusColor = "#E11D48";
+        }
+    }
+
+    [RelayCommand]
+    private void SetPresetShortcut(string preset) => SelectPreset(preset);
+
+    [RelayCommand]
+    private void SelectPresetF8() => SelectPreset("F8");
+
+    [RelayCommand]
+    private void SelectPresetCtrlSpace() => SelectPreset("Ctrl + Space");
+
+    [RelayCommand]
+    private void SelectPresetAltSpace() => SelectPreset("Alt + Space");
+
+    [RelayCommand]
+    private void SelectPresetF6() => SelectPreset("F6");
+
+    [RelayCommand]
+    private void SelectPresetCtrlF8() => SelectPreset("Ctrl + F8");
+
+    [RelayCommand]
+    private void SelectPresetCtrlShiftSpace() => SelectPreset("Ctrl + Shift + Space");
 
     [RelayCommand]
     private void StartRecordingShortcut() { }

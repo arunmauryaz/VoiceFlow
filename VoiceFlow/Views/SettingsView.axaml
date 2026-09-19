@@ -237,6 +237,108 @@
                                     VerticalAlignment="Center" />
                         </Grid>
 
+                        <!-- Quick Presets Row (1-Click Working Shortcuts) -->
+                        <Border Background="{StaticResource SubtleBrush}"
+                                CornerRadius="10"
+                                Padding="12,10"
+                                Margin="0,2,0,2">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                    <TextBlock Text="⚡ Quick Presets"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="— Click any preset to activate instantly:"
+                                               FontSize="12"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <!-- F8 (Recommended) -->
+                                    <Button Classes="secondary"
+                                            Command="{Binding SelectPresetF8Command}"
+                                            Margin="3,2"
+                                            Padding="14,6"
+                                            CornerRadius="6"
+                                            Cursor="Hand"
+                                            ToolTip.Tip="F8 key — Single key, 100% reliable on all Windows PCs (Recommended)">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <TextBlock Text="★" FontSize="11" Foreground="#F59E0B" />
+                                            <TextBlock Text="F8 (Recommended)" FontWeight="Bold" FontSize="12" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <!-- Ctrl + Space -->
+                                    <Button Classes="secondary"
+                                            Content="Ctrl + Space"
+                                            Command="{Binding SelectPresetCtrlSpaceCommand}"
+                                            Margin="3,2"
+                                            Padding="12,6"
+                                            CornerRadius="6"
+                                            FontSize="12"
+                                            FontWeight="Medium"
+                                            Cursor="Hand"
+                                            ToolTip.Tip="Default shortcut: Ctrl + Space" />
+
+                                    <!-- Alt + Space -->
+                                    <Button Classes="secondary"
+                                            Content="Alt + Space"
+                                            Command="{Binding SelectPresetAltSpaceCommand}"
+                                            Margin="3,2"
+                                            Padding="12,6"
+                                            CornerRadius="6"
+                                            FontSize="12"
+                                            FontWeight="Medium"
+                                            Cursor="Hand"
+                                            ToolTip.Tip="Alt + Space" />
+
+                                    <!-- F6 -->
+                                    <Button Classes="secondary"
+                                            Content="F6"
+                                            Command="{Binding SelectPresetF6Command}"
+                                            Margin="3,2"
+                                            Padding="12,6"
+                                            CornerRadius="6"
+                                            FontSize="12"
+                                            FontWeight="Medium"
+                                            Cursor="Hand"
+                                            ToolTip.Tip="F6 key" />
+
+                                    <!-- Ctrl + F8 -->
+                                    <Button Classes="secondary"
+                                            Content="Ctrl + F8"
+                                            Command="{Binding SelectPresetCtrlF8Command}"
+                                            Margin="3,2"
+                                            Padding="12,6"
+                                            CornerRadius="6"
+                                            FontSize="12"
+                                            FontWeight="Medium"
+                                            Cursor="Hand"
+                                            ToolTip.Tip="Ctrl + F8" />
+
+                                    <!-- Ctrl + Shift + Space -->
+                                    <Button Classes="secondary"
+                                            Content="Ctrl + Shift + Space"
+                                            Command="{Binding SelectPresetCtrlShiftSpaceCommand}"
+                                            Margin="3,2"
+                                            Padding="12,6"
+                                            CornerRadius="6"
+                                            FontSize="12"
+                                            FontWeight="Medium"
+                                            Cursor="Hand"
+                                            ToolTip.Tip="Ctrl + Shift + Space (Zero conflict combination)" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Or customize your own keys below:"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,2,0,-4" />
+
                         <!-- 3-Box Slot Builder Row -->
                         <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,8">
 
