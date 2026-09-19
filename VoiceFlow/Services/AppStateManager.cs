@@ -84,6 +84,13 @@ public class AppStateManager : IDisposable
         {
             if (CurrentState != AppState.Ready) return;
 
+            if (!_audioRecorder.HasInputDevices)
+            {
+                AppLogger.LogWarning("Hotkey pressed but no microphone is connected.");
+                HandleError("No microphone connected");
+                return;
+            }
+
             try
             {
                 _targetHwnd = _textInjectionService.GetForegroundWindowHandle();
@@ -102,7 +109,13 @@ public class AppStateManager : IDisposable
             catch (Exception ex)
             {
                 AppLogger.LogError("Failed to begin voice recording on hotkey press.", ex);
-                HandleError($"Microphone error: {ex.Message}");
+                string err = (ex is InvalidOperationException ioe && ioe.Message.Contains("No microphone", StringComparison.OrdinalIgnoreCase))
+                    || ex.Message.Contains("waveInOpen", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("BadDeviceId", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("NoDriver", StringComparison.OrdinalIgnoreCase)
+                    ? "No microphone connected"
+                    : $"Microphone error: {ex.Message}";
+                HandleError(err);
             }
         });
     }
@@ -222,14 +235,11 @@ public class AppStateManager : IDisposable
         CurrentState = AppState.Error;
         ErrorOccurred?.Invoke(this, message);
 
-        if (_settingsService.Settings.ShowOverlay)
-        {
-            _overlayViewModel.ShowError(message);
-        }
+        _overlayViewModel.ShowError(message);
 
         _ = Task.Run(async () =>
         {
-            await Task.Delay(2500);
+            await Task.Delay(3000);
             Dispatcher.UIThread.Post(() =>
             {
                 if (CurrentState == AppState.Error)

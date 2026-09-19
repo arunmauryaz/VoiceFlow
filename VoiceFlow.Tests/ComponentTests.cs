@@ -557,6 +557,33 @@ public class ComponentTests
         Assert.Equal("Space", vm.Slot2Text);
         Assert.Equal(string.Empty, vm.Slot3Text);
     }
+
+    [Fact]
+    public void RecordingOverlayViewModel_ShowError_MakesOverlayVisibleWithErrorMessage()
+    {
+        var overlay = new RecordingOverlayViewModel();
+        Assert.False(overlay.IsVisible);
+
+        overlay.ShowError("No microphone connected");
+
+        Assert.True(overlay.IsVisible);
+        Assert.Equal(AppState.Error, overlay.State);
+        Assert.Equal("No microphone connected", overlay.StatusText);
+        Assert.False(overlay.IsPopupMode);
+    }
+
+    [Fact]
+    public void RecordingOverlayViewModel_ShowNoMicrophone_SetsErrorMessageAndVisible()
+    {
+        var overlay = new RecordingOverlayViewModel();
+        Assert.False(overlay.IsVisible);
+
+        overlay.ShowNoMicrophone();
+
+        Assert.True(overlay.IsVisible);
+        Assert.Equal(AppState.Error, overlay.State);
+        Assert.Equal("No microphone connected", overlay.StatusText);
+    }
 }
 
 public class MockClipboardService : IClipboardService

@@ -153,14 +153,16 @@ public partial class RecordingOverlayViewModel : ObservableObject
         _autoHideCts = new CancellationTokenSource();
         var token = _autoHideCts.Token;
 
+        IsPopupMode = false;
         State = AppState.Error;
         StatusText = error.Length > 35 ? error[..32] + "..." : error;
+        IsVisible = true;
 
         _ = Task.Run(async () =>
         {
             try
             {
-                await Task.Delay(2500, token);
+                await Task.Delay(3000, token);
                 if (!token.IsCancellationRequested)
                 {
                     Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -172,6 +174,11 @@ public partial class RecordingOverlayViewModel : ObservableObject
             }
             catch (OperationCanceledException) { }
         }, token);
+    }
+
+    public void ShowNoMicrophone()
+    {
+        ShowError("No microphone connected");
     }
 
     public void ShowTranscriptionPopup(string text)

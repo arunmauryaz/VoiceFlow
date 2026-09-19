@@ -9,6 +9,7 @@ namespace VoiceFlow.Interfaces;
 public interface IAudioRecorder : IDisposable
 {
     bool IsRecording { get; }
+    bool HasInputDevices { get; }
     TimeSpan RecordingDuration { get; }
     int CurrentDeviceIndex { get; }
 

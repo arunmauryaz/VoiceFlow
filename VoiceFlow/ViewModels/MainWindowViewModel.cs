@@ -590,6 +590,13 @@ public partial class MainWindowViewModel : ViewModelBase
             AudioDevices.Add(dev);
         }
 
+        if (!_audioRecorder.HasInputDevices)
+        {
+            SelectedAudioDevice = AudioDevices.FirstOrDefault();
+            CurrentMicrophoneText = "No microphone connected";
+            return;
+        }
+
         var match = AudioDevices.FirstOrDefault(d => d.DeviceNumber == _settingsService.Settings.SelectedAudioDeviceIndex)
                     ?? AudioDevices.FirstOrDefault();
 
@@ -1334,6 +1341,12 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (IsRecordingTestSpeech || IsTranscribingTestSpeech) return;
 
+        if (!_audioRecorder.HasInputDevices)
+        {
+            TestSpeechStatus = "No microphone connected. Please plug in a microphone.";
+            return;
+        }
+
         try
         {
             int dev = SelectedAudioDevice?.DeviceNumber ?? -1;
@@ -1363,7 +1376,9 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (Exception ex)
         {
             AppLogger.LogError("Failed to start test speech recording.", ex);
-            TestSpeechStatus = $"Microphone error: {ex.Message}";
+            TestSpeechStatus = (ex is InvalidOperationException ioe && ioe.Message.Contains("No microphone", StringComparison.OrdinalIgnoreCase))
+                ? "No microphone connected. Please plug in a microphone."
+                : $"Microphone error: {ex.Message}";
         }
     }
 

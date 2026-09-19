@@ -18,6 +18,20 @@ public class AudioRecorder : IAudioRecorder
     private bool _isDisposed;
 
     public bool IsRecording { get; private set; }
+    public bool HasInputDevices
+    {
+        get
+        {
+            try
+            {
+                return WaveInEvent.DeviceCount > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
     public TimeSpan RecordingDuration => _stopwatch.Elapsed;
     public int CurrentDeviceIndex { get; private set; } = -1;
 
@@ -28,7 +42,21 @@ public class AudioRecorder : IAudioRecorder
     public IReadOnlyList<AudioDeviceInfo> GetInputDevices()
     {
         var devices = new List<AudioDeviceInfo>();
-        int count = WaveInEvent.DeviceCount;
+        int count = 0;
+        try
+        {
+            count = WaveInEvent.DeviceCount;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogWarning($"Failed to query audio device count: {ex.Message}");
+        }
+
+        if (count == 0)
+        {
+            devices.Add(new AudioDeviceInfo(-1, "No microphone detected", false));
+            return devices;
+        }
 
         devices.Add(new AudioDeviceInfo(-1, "Default System Microphone", true));
 
@@ -56,6 +84,12 @@ public class AudioRecorder : IAudioRecorder
             {
                 AppLogger.LogWarning("StartRecording called while already recording.");
                 return;
+            }
+
+            if (!HasInputDevices)
+            {
+                AppLogger.LogWarning("Cannot start recording: No microphone connected.");
+                throw new InvalidOperationException("No microphone connected");
             }
 
             CurrentDeviceIndex = deviceIndex;
