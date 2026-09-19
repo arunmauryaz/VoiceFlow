@@ -520,7 +520,7 @@ public class ComponentTests
     [Fact]
     public void MainWindowViewModel_ShortcutRecording_StartsCancelsAndResets()
     {
-        var settings = new MockSettingsService();
+        var settings = new MockSettingsService { StoredApiKey = "test_key" };
         var audioRecorder = new AudioRecorder();
         var provider = new GeminiTranscriptionProvider(settings);
         var processor = new GeminiTextProcessor(settings);
@@ -533,22 +533,29 @@ public class ComponentTests
 
         var vm = new MainWindowViewModel(settings, audioRecorder, provider, processor, hotkey, clipboard, startup, stateManager);
 
-        Assert.False(vm.IsRecordingShortcut);
+        // Initially no slot is recording
+        Assert.False(vm.IsRecordingAnySlot);
 
-        // Start Recording
-        vm.StartRecordingShortcutCommand.Execute(null);
-        Assert.True(vm.IsRecordingShortcut);
+        // RecordSlot(0) activates slot 0 recording
+        vm.RecordSlotCommand.Execute(0);
+        Assert.True(vm.IsRecordingAnySlot);
+        Assert.Equal(0, vm.ActiveRecordingSlot);
 
-        // Cancel Recording
+        // Cancel clears the active slot
         vm.CancelRecordingShortcutCommand.Execute(null);
-        Assert.False(vm.IsRecordingShortcut);
+        Assert.False(vm.IsRecordingAnySlot);
+        Assert.Equal(-1, vm.ActiveRecordingSlot);
 
-        // Reset to Default
+        // Reset to Default fills slots from Ctrl+Space config
         vm.ResetDefaultShortcutCommand.Execute(null);
-        Assert.False(vm.IsRecordingShortcut);
+        Assert.False(vm.IsRecordingAnySlot);
         Assert.Equal("Ctrl + Space", vm.CurrentShortcutText);
         Assert.Equal("Ctrl", vm.ShortcutModifierKeyText);
         Assert.Equal("Space", vm.ShortcutMainKeyText);
+        // Slot 1 = "Ctrl", Slot 2 = "Space", Slot 3 = empty
+        Assert.Equal("Ctrl", vm.Slot1Text);
+        Assert.Equal("Space", vm.Slot2Text);
+        Assert.Equal(string.Empty, vm.Slot3Text);
     }
 }
 

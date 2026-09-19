@@ -223,13 +223,12 @@
                 <!-- Clean Shortcut Configuration Card -->
                 <Border Classes="card" Padding="20,18">
                     <StackPanel Spacing="14">
-                        <!-- Top Row: Title, Description & Reset Button -->
+                        <!-- Header Row -->
                         <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,16,0">
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
                                 <TextBlock Text="Voice Typing Shortcut" Classes="settingTitle" />
-                                <TextBlock Text="Click the bar below, then press your desired key or combination on your physical keyboard." Classes="settingDesc" TextWrapping="Wrap" />
+                                <TextBlock Text="Click any box below, then press that key. Fill 1–3 boxes to build your shortcut." Classes="settingDesc" TextWrapping="Wrap" />
                             </StackPanel>
-
                             <Button Grid.Column="1"
                                     Classes="secondary"
                                     Content="Reset Default"
@@ -238,113 +237,254 @@
                                     VerticalAlignment="Center" />
                         </Grid>
 
-                        <!-- Interactive Shortcut Input Bar (Click to Record) -->
-                        <Panel>
-                            <!-- Normal State: Sleek Clickable Text Bar showing active shortcut -->
-                            <Button Classes="ghost"
-                                    Padding="0"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Stretch"
-                                    Command="{Binding StartRecordingShortcutCommand}"
-                                    IsVisible="{Binding !IsRecordingShortcut}"
-                                    Cursor="Hand"
-                                    ToolTip.Tip="Click here to change shortcut (e.g. press F6 or Ctrl + Alt)">
-                                <Border Background="#16161A"
-                                        BorderBrush="{StaticResource BorderStrongBrush}"
-                                        BorderThickness="1.5"
-                                        CornerRadius="8"
-                                        Padding="14,10"
-                                        MinHeight="48">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <!-- Left: Keyboard Icon -->
-                                        <TextBlock Grid.Column="0"
-                                                   Text="⌨️"
-                                                   FontSize="16"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,12,0" />
+                        <!-- 3-Box Slot Builder Row -->
+                        <StackPanel Orientation="Horizontal" Spacing="0" HorizontalAlignment="Center">
 
-                                        <!-- Center: Formatted Keycaps -->
-                                        <StackPanel Grid.Column="1"
-                                                    Orientation="Horizontal"
-                                                    Spacing="6"
-                                                    VerticalAlignment="Center">
-                                            <Border Classes="keycap"
-                                                    IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                                <TextBlock Text="{Binding ShortcutModifierKeyText}" Classes="keycap" />
-                                            </Border>
-                                            <TextBlock Text="+"
-                                                       Foreground="{StaticResource TextMutedBrush}"
+                            <!-- Slot 1 -->
+                            <Panel Width="120" Height="56">
+                                <!-- Idle State -->
+                                <Button Classes="ghost"
+                                        Padding="0"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        VerticalContentAlignment="Stretch"
+                                        Command="{Binding RecordSlotCommand}"
+                                        CommandParameter="0"
+                                        Cursor="Hand"
+                                        IsVisible="{Binding !IsRecordingAnySlot}"
+                                        ToolTip.Tip="Click to set key for slot 1">
+                                    <Border CornerRadius="10,0,0,10"
+                                            BorderThickness="1.5"
+                                            BorderBrush="{StaticResource BorderStrongBrush}"
+                                            Background="#16161A"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch">
+                                        <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                            <!-- Empty state -->
+                                            <TextBlock Text="Click"
+                                                       HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
-                                                       FontWeight="SemiBold"
-                                                       IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                            <Border Classes="keycap">
-                                                <TextBlock Text="{Binding ShortcutMainKeyText}" Classes="keycap" />
-                                            </Border>
-                                        </StackPanel>
-
-                                        <!-- Right: Interactive Cue -->
-                                        <Border Grid.Column="2"
-                                                Background="{StaticResource SurfaceHoverBrush}"
-                                                BorderBrush="{StaticResource BorderSubtleBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="6"
-                                                Padding="10,5"
-                                                VerticalAlignment="Center">
-                                            <TextBlock Text="Click to change"
                                                        FontSize="12"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                       FontWeight="Medium" />
-                                        </Border>
-                                    </Grid>
-                                </Border>
-                            </Button>
-
-                            <!-- Live Recording State: Glowing Bar listening for keypresses -->
-                            <Border Background="#0F172A"
-                                    BorderBrush="#38BDF8"
-                                    BorderThickness="1.5"
-                                    CornerRadius="8"
-                                    Padding="14,10"
-                                    MinHeight="48"
-                                    IsVisible="{Binding IsRecordingShortcut}">
-                                <Grid ColumnDefinitions="Auto,*,Auto">
-                                    <!-- Left: Pulsing Recording Indicator -->
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,12,0">
-                                        <Border Width="10" Height="10" CornerRadius="5" Background="#E11D48" VerticalAlignment="Center" />
-                                    </StackPanel>
-
-                                    <!-- Center: Live Recording Text / Keys Held -->
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding ShortcutRecordingPrompt}"
-                                                   FontSize="13.5"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       IsVisible="{Binding Slot1Text, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+                                            <!-- Filled state: keycap + ×  -->
+                                            <Grid ColumnDefinitions="*,Auto"
+                                                  IsVisible="{Binding Slot1Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                  Margin="8,0">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding Slot1Text}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                <Button Grid.Column="1"
+                                                        Classes="ghost"
+                                                        Padding="4,2"
+                                                        Command="{Binding ClearSlotCommand}"
+                                                        CommandParameter="0"
+                                                        ToolTip.Tip="Clear slot 1">
+                                                    <TextBlock Text="×" FontSize="14" Foreground="{StaticResource TextMutedBrush}" />
+                                                </Button>
+                                            </Grid>
+                                        </Panel>
+                                    </Border>
+                                </Button>
+                                <!-- Recording State -->
+                                <Border CornerRadius="10,0,0,10"
+                                        BorderThickness="2"
+                                        BorderBrush="#38BDF8"
+                                        Background="#0F172A"
+                                        IsVisible="{Binding IsRecordingAnySlot}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Border Width="8" Height="8" CornerRadius="4" Background="#E11D48" />
+                                        <TextBlock Text="Press..."
+                                                   FontSize="12"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#38BDF8"
-                                                   VerticalAlignment="Center" />
+                                                   Foreground="#38BDF8" />
                                     </StackPanel>
+                                </Border>
+                            </Panel>
 
-                                    <!-- Right: Cancel Recording Button -->
-                                    <Button Grid.Column="2"
-                                            Classes="secondary"
-                                            Padding="10,4"
-                                            Command="{Binding CancelRecordingShortcutCommand}"
-                                            VerticalAlignment="Center">
-                                        <TextBlock Text="Cancel (Esc)" FontSize="12" Foreground="#A1A1AA" />
-                                    </Button>
-                                </Grid>
+                            <!-- + separator 1→2 -->
+                            <Border Background="#23232A" Width="28" Height="56" VerticalAlignment="Stretch">
+                                <TextBlock Text="+"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextMutedBrush}" />
                             </Border>
-                        </Panel>
 
-                        <!-- Instruction Tip & Feedback Message -->
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Tip: Press any single key (e.g. F6, F8, Pause) or any combination (e.g. Ctrl + Alt, Ctrl + Shift, Win + Space)."
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       IsVisible="{Binding !IsRecordingShortcut}" />
+                            <!-- Slot 2 -->
+                            <Panel Width="120" Height="56">
+                                <Button Classes="ghost"
+                                        Padding="0"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        VerticalContentAlignment="Stretch"
+                                        Command="{Binding RecordSlotCommand}"
+                                        CommandParameter="1"
+                                        Cursor="Hand"
+                                        IsVisible="{Binding !IsRecordingAnySlot}"
+                                        ToolTip.Tip="Click to set key for slot 2">
+                                    <Border CornerRadius="0"
+                                            BorderThickness="1.5,1.5,0,1.5"
+                                            BorderBrush="{StaticResource BorderStrongBrush}"
+                                            Background="#16161A"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch">
+                                        <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                            <TextBlock Text="Click"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       IsVisible="{Binding Slot2Text, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+                                            <Grid ColumnDefinitions="*,Auto"
+                                                  IsVisible="{Binding Slot2Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                  Margin="8,0">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding Slot2Text}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                <Button Grid.Column="1"
+                                                        Classes="ghost"
+                                                        Padding="4,2"
+                                                        Command="{Binding ClearSlotCommand}"
+                                                        CommandParameter="1"
+                                                        ToolTip.Tip="Clear slot 2">
+                                                    <TextBlock Text="×" FontSize="14" Foreground="{StaticResource TextMutedBrush}" />
+                                                </Button>
+                                            </Grid>
+                                        </Panel>
+                                    </Border>
+                                </Button>
+                                <Border CornerRadius="0"
+                                        BorderThickness="1.5,2,0,2"
+                                        BorderBrush="#38BDF8"
+                                        Background="#0F172A"
+                                        IsVisible="{Binding IsRecordingAnySlot}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Border Width="8" Height="8" CornerRadius="4" Background="#E11D48" />
+                                        <TextBlock Text="Press..."
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#38BDF8" />
+                                    </StackPanel>
+                                </Border>
+                            </Panel>
+
+                            <!-- + separator 2→3 -->
+                            <Border Background="#23232A" Width="28" Height="56" VerticalAlignment="Stretch">
+                                <TextBlock Text="+"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextMutedBrush}" />
+                            </Border>
+
+                            <!-- Slot 3 -->
+                            <Panel Width="120" Height="56">
+                                <Button Classes="ghost"
+                                        Padding="0"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        VerticalContentAlignment="Stretch"
+                                        Command="{Binding RecordSlotCommand}"
+                                        CommandParameter="2"
+                                        Cursor="Hand"
+                                        IsVisible="{Binding !IsRecordingAnySlot}"
+                                        ToolTip.Tip="Click to set key for slot 3">
+                                    <Border CornerRadius="0,10,10,0"
+                                            BorderThickness="1.5"
+                                            BorderBrush="{StaticResource BorderStrongBrush}"
+                                            Background="#16161A"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch">
+                                        <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                            <TextBlock Text="Click"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       IsVisible="{Binding Slot3Text, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+                                            <Grid ColumnDefinitions="*,Auto"
+                                                  IsVisible="{Binding Slot3Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                  Margin="8,0">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding Slot3Text}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                <Button Grid.Column="1"
+                                                        Classes="ghost"
+                                                        Padding="4,2"
+                                                        Command="{Binding ClearSlotCommand}"
+                                                        CommandParameter="2"
+                                                        ToolTip.Tip="Clear slot 3">
+                                                    <TextBlock Text="×" FontSize="14" Foreground="{StaticResource TextMutedBrush}" />
+                                                </Button>
+                                            </Grid>
+                                        </Panel>
+                                    </Border>
+                                </Button>
+                                <Border CornerRadius="0,10,10,0"
+                                        BorderThickness="0,2,2,2"
+                                        BorderBrush="#38BDF8"
+                                        Background="#0F172A"
+                                        IsVisible="{Binding IsRecordingAnySlot}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Border Width="8" Height="8" CornerRadius="4" Background="#E11D48" />
+                                        <TextBlock Text="Press..."
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#38BDF8" />
+                                    </StackPanel>
+                                </Border>
+                            </Panel>
+                        </StackPanel>
+
+                        <!-- Active shortcut label & feedback -->
+                        <StackPanel Spacing="3" HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                <TextBlock Text="Active:" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                                <Border Classes="keycap"
+                                        IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <TextBlock Text="{Binding ShortcutModifierKeyText}" Classes="keycap" />
+                                </Border>
+                                <TextBlock Text="+"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <Border Classes="keycap">
+                                    <TextBlock Text="{Binding ShortcutMainKeyText}" Classes="keycap" />
+                                </Border>
+                            </StackPanel>
+
                             <TextBlock Text="{Binding ShortcutStatusFeedback}"
                                        FontSize="12"
                                        Foreground="{Binding ShortcutStatusColor}"
+                                       HorizontalAlignment="Center"
                                        IsVisible="{Binding ShortcutStatusFeedback, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                         </StackPanel>
+
+                        <!-- Escape hint when recording -->
+                        <TextBlock Text="Press Esc to cancel recording"
+                                   FontSize="12"
+                                   Foreground="#38BDF8"
+                                   HorizontalAlignment="Center"
+                                   IsVisible="{Binding IsRecordingAnySlot}" />
                     </StackPanel>
                 </Border>
 

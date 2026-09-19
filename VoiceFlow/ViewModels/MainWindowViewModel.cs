@@ -268,12 +268,29 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string _hotkeyRegistrationError = string.Empty;
 
-    // --- Interactive Shortcut Recorder ---
+    // --- 3-Box Shortcut Slot Builder ---
+    // Each slot records one key independently. The 3 slots are combined into a HotkeyConfig.
+    // Slot 1 = leftmost, Slot 3 = rightmost. Empty slots are skipped.
+    [ObservableProperty]
+    private string _slot1Text = string.Empty;
+    [ObservableProperty]
+    private string _slot2Text = string.Empty;
+    [ObservableProperty]
+    private string _slot3Text = string.Empty;
+
+    // -1 = none recording, 0/1/2 = slot index being recorded
+    [ObservableProperty]
+    private int _activeRecordingSlot = -1;
+
+    private uint _slot1Vk;
+    private uint _slot2Vk;
+    private uint _slot3Vk;
+
+    public bool IsRecordingAnySlot => ActiveRecordingSlot >= 0;
+
+    // Keep IsRecordingShortcut for backwards-compat on HomeView bindings (always false now)
     [ObservableProperty]
     private bool _isRecordingShortcut;
-
-    [ObservableProperty]
-    private string _shortcutRecordingPrompt = "Press keys...";
 
     [ObservableProperty]
     private string _shortcutStatusFeedback = string.Empty;
@@ -464,6 +481,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _hotkeyService.ShortcutRecorded += OnShortcutRecorded;
         _hotkeyService.ShortcutRecordingPreview += OnShortcutRecordingPreview;
         _hotkeyService.ShortcutRecordingCanceled += OnShortcutRecordingCanceled;
+        _hotkeyService.SingleKeyCaptured += OnSingleKeyCaptured;
 
         LoadState();
     }
@@ -563,7 +581,34 @@ public partial class MainWindowViewModel : ViewModelBase
         DictationInstructionSubtitle = SelectedHotkeyMode == HotkeyActivationMode.HoldToTalk
             ? "Release shortcut when you are finished speaking"
             : "Press again when you are finished speaking";
+
+        // Sync 3-box slot display from config
+        SyncSlotsFromConfig(config);
     }
+
+    /// <summary>
+    /// Populates the 3 slot text boxes to reflect the currently active HotkeyConfig.
+    /// Modifiers go in slots 1–(n-1), the main VK goes in the last slot.
+    /// </summary>
+    private void SyncSlotsFromConfig(HotkeyConfig config)
+    {
+        // Build the ordered list of keys just like FormatHotkey does
+        var slotVks = new System.Collections.Generic.List<uint>();
+        if (config.Modifiers.HasFlag(KeyModifiers.Control)) slotVks.Add(Win32Constants.VK_CONTROL);
+        if (config.Modifiers.HasFlag(KeyModifiers.Alt)) slotVks.Add(Win32Constants.VK_MENU);
+        if (config.Modifiers.HasFlag(KeyModifiers.Shift)) slotVks.Add(Win32Constants.VK_SHIFT);
+        if (config.Modifiers.HasFlag(KeyModifiers.Windows)) slotVks.Add(Win32Constants.VK_LWIN);
+        if (config.VirtualKey != 0) slotVks.Add(config.VirtualKey);
+
+        _slot1Vk = slotVks.Count > 0 ? slotVks[0] : 0;
+        _slot2Vk = slotVks.Count > 1 ? slotVks[1] : 0;
+        _slot3Vk = slotVks.Count > 2 ? slotVks[2] : 0;
+
+        Slot1Text = _slot1Vk != 0 ? KeyFormattingHelper.FormatVirtualKey(_slot1Vk) : string.Empty;
+        Slot2Text = _slot2Vk != 0 ? KeyFormattingHelper.FormatVirtualKey(_slot2Vk) : string.Empty;
+        Slot3Text = _slot3Vk != 0 ? KeyFormattingHelper.FormatVirtualKey(_slot3Vk) : string.Empty;
+    }
+
 
     private void OnAppStateChanged(object? sender, AppState state)
     {
@@ -885,127 +930,192 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    // ── 3-Box Slot Commands ──────────────────────────────────────────────────
+
+    /// <summary>Start recording for a specific slot box (0=left, 1=mid, 2=right).</summary>
     [RelayCommand]
-    private void SetPresetShortcut(string preset)
+    private void RecordSlot(int slotIndex)
     {
-        if (string.IsNullOrWhiteSpace(preset)) return;
-
-        HotkeyConfig config = KeyFormattingHelper.ParseHotkey(preset) ?? HotkeyConfig.Default;
-
-        _settingsService.Settings.Hotkey = config;
-        _settingsService.SaveSettings();
-
-        CurrentShortcutText = KeyFormattingHelper.FormatHotkey(config);
-        UpdateShortcutKeyDisplay(config);
-
-        bool success = _hotkeyService.RegisterHotkey(config, SelectedHotkeyMode);
-        HotkeyRegistrationError = success ? string.Empty : "✕ Could not register this shortcut. It may be in use by Windows or another app.";
-        ShortcutStatusFeedback = success ? $"✓ Active shortcut set to [{CurrentShortcutText}]." : "✕ Could not register shortcut.";
-        ShortcutStatusColor = success ? "#10B981" : "#E11D48";
-    }
-
-    [RelayCommand]
-    private void StartRecordingShortcut()
-    {
-        IsRecordingShortcut = true;
-        ShortcutRecordingPrompt = "Press keys...";
-        ShortcutStatusFeedback = "Listening for any Function key (F1–F12) or 2–3 key combination (Esc to cancel)...";
+        // Cancel any in-progress capture for another slot
+        _hotkeyService.StopCapturingSingleKey();
+        ActiveRecordingSlot = slotIndex;
+        OnPropertyChanged(nameof(IsRecordingAnySlot));
+        ShortcutStatusFeedback = $"Press a key for slot {slotIndex + 1} (Esc to cancel)...";
         ShortcutStatusColor = "#38BDF8";
-        _hotkeyService.StartRecordingShortcut();
+        _hotkeyService.StartCapturingSingleKey();
     }
 
+    /// <summary>Clear a specific slot and re-register the hotkey from remaining slots.</summary>
     [RelayCommand]
-    private void CancelRecordingShortcut()
+    private void ClearSlot(int slotIndex)
     {
-        _hotkeyService.StopRecordingShortcut();
-        IsRecordingShortcut = false;
-        ShortcutStatusFeedback = "Recording cancelled.";
-        ShortcutStatusColor = "#A1A1AA";
+        switch (slotIndex)
+        {
+            case 0: _slot1Vk = 0; Slot1Text = string.Empty; break;
+            case 1: _slot2Vk = 0; Slot2Text = string.Empty; break;
+            case 2: _slot3Vk = 0; Slot3Text = string.Empty; break;
+        }
+        ApplySlotsAsHotkey();
     }
 
     [RelayCommand]
     private void ResetDefaultShortcut()
     {
+        _hotkeyService.StopCapturingSingleKey();
         _hotkeyService.StopRecordingShortcut();
+        ActiveRecordingSlot = -1;
+        OnPropertyChanged(nameof(IsRecordingAnySlot));
         IsRecordingShortcut = false;
         var def = HotkeyConfig.Default;
         _settingsService.Settings.Hotkey = def;
         AutoPersistSettings();
-
         CurrentShortcutText = KeyFormattingHelper.FormatHotkey(def);
         UpdateShortcutKeyDisplay(def);
-
         bool success = _hotkeyService.RegisterHotkey(def, SelectedHotkeyMode);
         ShortcutStatusFeedback = success ? "✓ Reset to default (Ctrl + Space)." : "✕ Could not register default shortcut.";
         ShortcutStatusColor = success ? "#10B981" : "#E11D48";
         HotkeyRegistrationError = success ? string.Empty : "✕ Default shortcut is currently unavailable.";
     }
 
+    // Keep for backwards compat (may be called from old bindings) – no-op now
+    [RelayCommand]
+    private void SetPresetShortcut(string preset) { }
+
+    [RelayCommand]
+    private void StartRecordingShortcut() { }
+
+    [RelayCommand]
+    private void CancelRecordingShortcut()
+    {
+        _hotkeyService.StopCapturingSingleKey();
+        ActiveRecordingSlot = -1;
+        OnPropertyChanged(nameof(IsRecordingAnySlot));
+        ShortcutStatusFeedback = "Recording cancelled.";
+        ShortcutStatusColor = "#A1A1AA";
+    }
+
+    private void OnSingleKeyCaptured(object? sender, uint vk)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            int slot = ActiveRecordingSlot;
+            ActiveRecordingSlot = -1;
+            OnPropertyChanged(nameof(IsRecordingAnySlot));
+
+            if (slot < 0) return;
+
+            string keyText = KeyFormattingHelper.FormatVirtualKey(vk);
+            switch (slot)
+            {
+                case 0: _slot1Vk = vk; Slot1Text = keyText; break;
+                case 1: _slot2Vk = vk; Slot2Text = keyText; break;
+                case 2: _slot3Vk = vk; Slot3Text = keyText; break;
+            }
+
+            ApplySlotsAsHotkey();
+        });
+    }
+
+    /// <summary>
+    /// Builds a HotkeyConfig from the 3 slot VKs, registers it, and saves it.
+    /// Modifiers (Ctrl/Alt/Shift/Win) → Modifiers flags. Last non-modifier → VirtualKey.
+    /// If all are modifiers, last one becomes VirtualKey.
+    /// </summary>
+    private void ApplySlotsAsHotkey()
+    {
+        var vks = new[] { _slot1Vk, _slot2Vk, _slot3Vk }.Where(v => v != 0).ToArray();
+        if (vks.Length == 0)
+        {
+            ShortcutStatusFeedback = "All slots cleared. Fill at least one slot.";
+            ShortcutStatusColor = "#F59E0B";
+            return;
+        }
+
+        HotkeyConfig config = BuildHotkeyConfigFromVks(vks);
+
+        if (IsReservedWindowsShortcut(config))
+        {
+            ShortcutStatusFeedback = "✕ This combination is reserved by Windows. Choose another.";
+            ShortcutStatusColor = "#E11D48";
+            return;
+        }
+
+        bool success = _hotkeyService.RegisterHotkey(config, SelectedHotkeyMode);
+        if (success)
+        {
+            _settingsService.Settings.Hotkey = config;
+            AutoPersistSettings();
+            CurrentShortcutText = KeyFormattingHelper.FormatHotkey(config);
+            // Update HomeView keycaps
+            string formatted = CurrentShortcutText;
+            var parts = formatted.Split(" + ");
+            ShortcutModifierKeyText = parts.Length > 1 ? string.Join(" + ", parts.Take(parts.Length - 1)) : string.Empty;
+            ShortcutMainKeyText = parts.Last();
+            string action = SelectedHotkeyMode == HotkeyActivationMode.HoldToTalk ? "Hold" : "Press";
+            DictationInstructionTitle = $"{action} {formatted} to dictate";
+            ShortcutStatusFeedback = $"✓ Shortcut [{formatted}] saved!";
+            ShortcutStatusColor = "#10B981";
+            HotkeyRegistrationError = string.Empty;
+        }
+        else
+        {
+            _hotkeyService.RegisterHotkey(_settingsService.Settings.Hotkey, SelectedHotkeyMode);
+            ShortcutStatusFeedback = "✕ Windows rejected this shortcut. It may be in use by another app.";
+            ShortcutStatusColor = "#E11D48";
+        }
+    }
+
+    private static HotkeyConfig BuildHotkeyConfigFromVks(uint[] vks)
+    {
+        static bool IsModVk(uint v) =>
+            v is Win32Constants.VK_CONTROL or 0xA2 or 0xA3
+              or Win32Constants.VK_MENU or 0xA4 or 0xA5
+              or Win32Constants.VK_SHIFT or 0xA0 or 0xA1
+              or Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
+
+        var modVks = vks.Where(IsModVk).ToArray();
+        var nonModVks = vks.Where(v => !IsModVk(v)).ToArray();
+
+        uint mainVk;
+        uint[] modifierVks;
+
+        if (nonModVks.Length > 0)
+        {
+            mainVk = nonModVks.Last();
+            modifierVks = modVks;
+        }
+        else
+        {
+            // All modifier keys — last one is "the key", the rest are modifiers
+            mainVk = modVks.Last();
+            modifierVks = modVks.Take(modVks.Length - 1).ToArray();
+        }
+
+        KeyModifiers mods = KeyModifiers.None;
+        foreach (uint v in modifierVks)
+        {
+            if (v is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) mods |= KeyModifiers.Control;
+            else if (v is Win32Constants.VK_MENU or 0xA4 or 0xA5) mods |= KeyModifiers.Alt;
+            else if (v is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) mods |= KeyModifiers.Shift;
+            else if (v is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) mods |= KeyModifiers.Windows;
+        }
+
+        return new HotkeyConfig(mods, mainVk);
+    }
+
     private void OnShortcutRecorded(object? sender, HotkeyConfig recorded)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            IsRecordingShortcut = false;
-
-            bool hasModifier = recorded.Modifiers != KeyModifiers.None;
-            bool isFunctionKey = recorded.VirtualKey >= Win32Constants.VK_F1 && recorded.VirtualKey <= Win32Constants.VK_F12;
-            bool isSpecialKey = recorded.VirtualKey is Win32Constants.VK_SNAPSHOT or Win32Constants.VK_PAUSE;
-            bool isModifierKey = recorded.VirtualKey is Win32Constants.VK_CONTROL or 0xA2 or 0xA3
-                or Win32Constants.VK_MENU or 0xA4 or 0xA5
-                or Win32Constants.VK_SHIFT or 0xA0 or 0xA1
-                or Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
-
-            bool isValid = hasModifier || isFunctionKey || isSpecialKey || isModifierKey;
-
-            if (!isValid)
-            {
-                ShortcutStatusFeedback = "✕ Please press a Function key (e.g. F6) or a combination with Ctrl/Alt/Shift/Win.";
-                ShortcutStatusColor = "#E11D48";
-                return;
-            }
-
-            if (IsReservedWindowsShortcut(recorded))
-            {
-                ShortcutStatusFeedback = "✕ This combination is reserved by Windows. Please choose another.";
-                ShortcutStatusColor = "#E11D48";
-                return;
-            }
-
-            bool success = _hotkeyService.RegisterHotkey(recorded, SelectedHotkeyMode);
-            if (success)
-            {
-                _settingsService.Settings.Hotkey = recorded;
-                AutoPersistSettings();
-
-                CurrentShortcutText = KeyFormattingHelper.FormatHotkey(recorded);
-                UpdateShortcutKeyDisplay(recorded);
-
-                ShortcutStatusFeedback = $"✓ Shortcut [{CurrentShortcutText}] registered successfully!";
-                ShortcutStatusColor = "#10B981";
-                HotkeyRegistrationError = string.Empty;
-            }
-            else
-            {
-                _hotkeyService.RegisterHotkey(_settingsService.Settings.Hotkey, SelectedHotkeyMode);
-                ShortcutStatusFeedback = "✕ Windows rejected this shortcut. It may be in use by another application.";
-                ShortcutStatusColor = "#E11D48";
-                HotkeyRegistrationError = "✕ Shortcut registration failed.";
-            }
-        });
+        // Legacy handler — not triggered by slot recorder (kept for compatibility)
     }
 
-    private void OnShortcutRecordingPreview(object? sender, string preview)
-    {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            ShortcutRecordingPrompt = preview;
-        });
-    }
+    private void OnShortcutRecordingPreview(object? sender, string preview) { }
 
     private void OnShortcutRecordingCanceled(object? sender, EventArgs e)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            ActiveRecordingSlot = -1;
+            OnPropertyChanged(nameof(IsRecordingAnySlot));
             IsRecordingShortcut = false;
             ShortcutStatusFeedback = "Recording cancelled.";
             ShortcutStatusColor = "#A1A1AA";

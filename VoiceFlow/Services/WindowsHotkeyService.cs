@@ -17,6 +17,7 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     private bool _isHotkeyHeld;
     private bool _isToggledOn;
     private bool _isRecordingShortcut;
+    private bool _isCapturingSingleKey;
     private uint _lastPressedModifierVk;
     private KeyModifiers _recordedModifiers;
     private bool _isDisposed;
@@ -24,6 +25,7 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     public bool IsRegistered => _hookId != IntPtr.Zero;
     public bool IsPaused { get; set; }
     public bool IsRecordingShortcut => _isRecordingShortcut;
+    public bool IsCapturingSingleKey => _isCapturingSingleKey;
     public HotkeyConfig CurrentConfig => _config;
     public HotkeyActivationMode CurrentMode => _mode;
 
@@ -32,6 +34,7 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     public event EventHandler<HotkeyConfig>? ShortcutRecorded;
     public event EventHandler<string>? ShortcutRecordingPreview;
     public event EventHandler? ShortcutRecordingCanceled;
+    public event EventHandler<uint>? SingleKeyCaptured;
 
     public WindowsHotkeyService()
     {
@@ -41,6 +44,7 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     public void StartRecordingShortcut()
     {
         _isRecordingShortcut = true;
+        _isCapturingSingleKey = false;
         _lastPressedModifierVk = 0;
         _recordedModifiers = KeyModifiers.None;
         if (_hookId == IntPtr.Zero)
@@ -54,6 +58,27 @@ public class WindowsHotkeyService : IGlobalHotkeyService
         _isRecordingShortcut = false;
         _lastPressedModifierVk = 0;
         _recordedModifiers = KeyModifiers.None;
+    }
+
+    /// <summary>
+    /// Start capturing a single keypress for a shortcut slot box.
+    /// ANY key (including Ctrl, Win, Alt, Shift, F8, Space, etc.) is captured immediately on press.
+    /// </summary>
+    public void StartCapturingSingleKey()
+    {
+        _isCapturingSingleKey = true;
+        _isRecordingShortcut = false;
+        _lastPressedModifierVk = 0;
+        _recordedModifiers = KeyModifiers.None;
+        if (_hookId == IntPtr.Zero)
+        {
+            RegisterHotkey(_config, _mode);
+        }
+    }
+
+    public void StopCapturingSingleKey()
+    {
+        _isCapturingSingleKey = false;
     }
 
     public bool RegisterHotkey(HotkeyConfig config, HotkeyActivationMode mode)
@@ -116,6 +141,26 @@ public class WindowsHotkeyService : IGlobalHotkeyService
 
             bool isKeyDown = msg == Win32Constants.WM_KEYDOWN || msg == Win32Constants.WM_SYSKEYDOWN;
             bool isKeyUp = msg == Win32Constants.WM_KEYUP || msg == Win32Constants.WM_SYSKEYUP;
+
+            // --- Slot-based single key capture (for the 3-box shortcut builder) ---
+            if (_isCapturingSingleKey)
+            {
+                if (isKeyDown)
+                {
+                    if (vk == Win32Constants.VK_ESCAPE)
+                    {
+                        StopCapturingSingleKey();
+                        ShortcutRecordingCanceled?.Invoke(this, EventArgs.Empty);
+                        return (IntPtr)1;
+                    }
+
+                    // Capture any key – modifier keys (Ctrl, Alt, Shift, Win) or regular keys
+                    StopCapturingSingleKey();
+                    SingleKeyCaptured?.Invoke(this, vk);
+                    return (IntPtr)1;
+                }
+                return (IntPtr)1; // swallow key-up events too while capturing
+            }
 
             if (_isRecordingShortcut)
             {
