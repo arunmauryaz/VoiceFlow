@@ -223,7 +223,7 @@ public class WindowsHotkeyService : IGlobalHotkeyService
 
             if (isKeyDown)
             {
-                if (vk == _config.VirtualKey && AreModifiersActive(_config.Modifiers))
+                if (vk == _config.VirtualKey && AreModifiersActive(_config.Modifiers, vk))
                 {
                     if (_mode == HotkeyActivationMode.HoldToTalk)
                     {
@@ -288,7 +288,7 @@ public class WindowsHotkeyService : IGlobalHotkeyService
             or Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
     }
 
-    private static bool AreModifiersActive(KeyModifiers required)
+    private static bool AreModifiersActive(KeyModifiers required, uint triggeredVk)
     {
         bool ctrlDown = (Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_CONTROL) & 0x8000) != 0;
         bool altDown = (Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_MENU) & 0x8000) != 0;
@@ -296,10 +296,24 @@ public class WindowsHotkeyService : IGlobalHotkeyService
         bool winDown = ((Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_LWIN) |
                          Win32PInvoke.GetAsyncKeyState(Win32Constants.VK_RWIN)) & 0x8000) != 0;
 
-        if (required.HasFlag(KeyModifiers.Control) != ctrlDown) return false;
-        if (required.HasFlag(KeyModifiers.Alt) != altDown) return false;
-        if (required.HasFlag(KeyModifiers.Shift) != shiftDown) return false;
-        if (required.HasFlag(KeyModifiers.Windows) != winDown) return false;
+        // If the triggered key itself is a modifier, it will be pressed down right now,
+        // so we must exclude it when ensuring no extra modifiers are pressed.
+        bool isTriggerCtrl = triggeredVk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3;
+        bool isTriggerAlt = triggeredVk is Win32Constants.VK_MENU or 0xA4 or 0xA5;
+        bool isTriggerShift = triggeredVk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1;
+        bool isTriggerWin = triggeredVk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
+
+        // All required modifiers must be active
+        if (required.HasFlag(KeyModifiers.Control) && !ctrlDown) return false;
+        if (required.HasFlag(KeyModifiers.Alt) && !altDown) return false;
+        if (required.HasFlag(KeyModifiers.Shift) && !shiftDown) return false;
+        if (required.HasFlag(KeyModifiers.Windows) && !winDown) return false;
+
+        // Unrequired modifiers must NOT be active, unless that modifier IS the triggered key
+        if (!required.HasFlag(KeyModifiers.Control) && ctrlDown && !isTriggerCtrl) return false;
+        if (!required.HasFlag(KeyModifiers.Alt) && altDown && !isTriggerAlt) return false;
+        if (!required.HasFlag(KeyModifiers.Shift) && shiftDown && !isTriggerShift) return false;
+        if (!required.HasFlag(KeyModifiers.Windows) && winDown && !isTriggerWin) return false;
 
         return true;
     }

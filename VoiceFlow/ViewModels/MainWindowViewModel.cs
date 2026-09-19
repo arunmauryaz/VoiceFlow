@@ -273,20 +273,40 @@ public partial class MainWindowViewModel : ViewModelBase
     // Slot 1 = leftmost, Slot 3 = rightmost. Empty slots are skipped.
     [ObservableProperty]
     private string _slot1Text = string.Empty;
+    partial void OnSlot1TextChanged(string value) => OnPropertyChanged(nameof(HasSlot1Key));
+
     [ObservableProperty]
     private string _slot2Text = string.Empty;
+    partial void OnSlot2TextChanged(string value) => OnPropertyChanged(nameof(HasSlot2Key));
+
     [ObservableProperty]
     private string _slot3Text = string.Empty;
+    partial void OnSlot3TextChanged(string value) => OnPropertyChanged(nameof(HasSlot3Key));
 
     // -1 = none recording, 0/1/2 = slot index being recorded
     [ObservableProperty]
     private int _activeRecordingSlot = -1;
 
+    partial void OnActiveRecordingSlotChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsRecordingSlot1));
+        OnPropertyChanged(nameof(IsRecordingSlot2));
+        OnPropertyChanged(nameof(IsRecordingSlot3));
+        OnPropertyChanged(nameof(IsRecordingAnySlot));
+    }
+
     private uint _slot1Vk;
     private uint _slot2Vk;
     private uint _slot3Vk;
 
+    public bool IsRecordingSlot1 => ActiveRecordingSlot == 0;
+    public bool IsRecordingSlot2 => ActiveRecordingSlot == 1;
+    public bool IsRecordingSlot3 => ActiveRecordingSlot == 2;
     public bool IsRecordingAnySlot => ActiveRecordingSlot >= 0;
+
+    public bool HasSlot1Key => !string.IsNullOrEmpty(Slot1Text);
+    public bool HasSlot2Key => !string.IsNullOrEmpty(Slot2Text);
+    public bool HasSlot3Key => !string.IsNullOrEmpty(Slot3Text);
 
     // Keep IsRecordingShortcut for backwards-compat on HomeView bindings (always false now)
     [ObservableProperty]
@@ -932,22 +952,34 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // ── 3-Box Slot Commands ──────────────────────────────────────────────────
 
-    /// <summary>Start recording for a specific slot box (0=left, 1=mid, 2=right).</summary>
-    [RelayCommand]
-    private void RecordSlot(int slotIndex)
+    private void StartRecordingSlot(int slotIndex)
     {
-        // Cancel any in-progress capture for another slot
         _hotkeyService.StopCapturingSingleKey();
         ActiveRecordingSlot = slotIndex;
-        OnPropertyChanged(nameof(IsRecordingAnySlot));
-        ShortcutStatusFeedback = $"Press a key for slot {slotIndex + 1} (Esc to cancel)...";
-        ShortcutStatusColor = "#38BDF8";
+        ShortcutStatusFeedback = $"Press any key for Box {slotIndex + 1} (Esc to cancel)...";
+        ShortcutStatusColor = "#3B82F6";
         _hotkeyService.StartCapturingSingleKey();
     }
 
-    /// <summary>Clear a specific slot and re-register the hotkey from remaining slots.</summary>
     [RelayCommand]
-    private void ClearSlot(int slotIndex)
+    private void RecordSlot1() => StartRecordingSlot(0);
+
+    [RelayCommand]
+    private void RecordSlot2() => StartRecordingSlot(1);
+
+    [RelayCommand]
+    private void RecordSlot3() => StartRecordingSlot(2);
+
+    [RelayCommand]
+    private void RecordSlot(object? parameter)
+    {
+        if (parameter != null && int.TryParse(parameter.ToString(), out int slot))
+        {
+            StartRecordingSlot(slot);
+        }
+    }
+
+    private void ClearSlotInternal(int slotIndex)
     {
         switch (slotIndex)
         {
@@ -959,12 +991,29 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void ClearSlot1() => ClearSlotInternal(0);
+
+    [RelayCommand]
+    private void ClearSlot2() => ClearSlotInternal(1);
+
+    [RelayCommand]
+    private void ClearSlot3() => ClearSlotInternal(2);
+
+    [RelayCommand]
+    private void ClearSlot(object? parameter)
+    {
+        if (parameter != null && int.TryParse(parameter.ToString(), out int slot))
+        {
+            ClearSlotInternal(slot);
+        }
+    }
+
+    [RelayCommand]
     private void ResetDefaultShortcut()
     {
         _hotkeyService.StopCapturingSingleKey();
         _hotkeyService.StopRecordingShortcut();
         ActiveRecordingSlot = -1;
-        OnPropertyChanged(nameof(IsRecordingAnySlot));
         IsRecordingShortcut = false;
         var def = HotkeyConfig.Default;
         _settingsService.Settings.Hotkey = def;
@@ -989,7 +1038,6 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _hotkeyService.StopCapturingSingleKey();
         ActiveRecordingSlot = -1;
-        OnPropertyChanged(nameof(IsRecordingAnySlot));
         ShortcutStatusFeedback = "Recording cancelled.";
         ShortcutStatusColor = "#A1A1AA";
     }
@@ -1000,7 +1048,6 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             int slot = ActiveRecordingSlot;
             ActiveRecordingSlot = -1;
-            OnPropertyChanged(nameof(IsRecordingAnySlot));
 
             if (slot < 0) return;
 
