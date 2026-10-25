@@ -1,6 +1,6 @@
 #define MyAppName "VoiceFlow"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.1.0"
+  #define MyAppVersion "1.1.4"
 #endif
 #define MyAppPublisher "VoiceFlow Contributors"
 #define MyAppURL "https://github.com/arunmauryaz/VoiceFlow"
@@ -59,3 +59,34 @@ Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameter
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function IsSourceDirectory(const Directory: String): Boolean;
+begin
+  Result := FileExists(AddBackslash(Directory) + 'VoiceFlow.sln') or
+    FileExists(AddBackslash(Directory) + 'VoiceFlow\VoiceFlow.csproj') or
+    DirExists(AddBackslash(Directory) + '.git');
+end;
+
+procedure InitializeWizard();
+begin
+  if IsSourceDirectory(WizardDirValue()) then
+    WizardForm.DirEdit.Text := AddBackslash(WizardDirValue()) + 'App';
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpSelectDir) and IsSourceDirectory(WizardDirValue()) then
+  begin
+    MsgBox('Choose a separate app folder. This folder contains source code and development files.', mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if IsSourceDirectory(WizardDirValue()) then
+    Result := 'Choose a separate app folder. Installing into a source-code folder is not supported.';
+end;

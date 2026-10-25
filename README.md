@@ -12,9 +12,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-686f7c?style=flat-square" alt="MIT license" /></a>
 </p>
 <p align="center">
-  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.3/VoiceFlow-v1.1.3-Setup.exe"><strong>Download installer</strong></a>
+  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-Setup.exe"><strong>Download installer</strong></a>
   &nbsp; · &nbsp;
-  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.3/VoiceFlow-v1.1.3-win-x64.zip">Portable ZIP</a>
+  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-win-x64.zip">Portable ZIP</a>
   &nbsp; · &nbsp;
   <a href="https://github.com/arunmauryaz/VoiceFlow/releases/latest">Release notes</a>
 </p>
@@ -23,8 +23,10 @@ VoiceFlow turns speech into text in your focused text field. Choose a local Whis
 or Underdog Bark model, or use Gemini with your own API key. Use a hold shortcut,
 a toggle shortcut, or the Home screen to start dictation.
 
-## What's new in 1.1.3
+## Recent improvements
 
+- **Smaller development footprint.** Release builds clean up their temporary files;
+  the installer keeps app files separate from source checkouts.
 - **Faster local loading.** Reuse resident models and skip unnecessary reloads for
   equivalent Default/CPU selections. Rapid device changes settle before setup.
 - **Bark loading cache.** Later starts reuse decoded, memory-mapped weights. On the
@@ -59,8 +61,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full release summary.
 
 ## Install
 
-Download the **[v1.1.3 installer](https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.3/VoiceFlow-v1.1.3-Setup.exe)**,
-or extract the **[portable ZIP](https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.3/VoiceFlow-v1.1.3-win-x64.zip)**
+Download the **[v1.1.4 installer](https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-Setup.exe)**,
+or extract the **[portable ZIP](https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-win-x64.zip)**
 and launch `VoiceFlow.exe`. Keep all portable files together.
 
 Close the existing app from its tray before upgrading. Both packages include
@@ -143,6 +145,8 @@ powershell -ExecutionPolicy Bypass -File .\Build-Release.ps1
 
 The script runs the tests, publishes a self-contained Windows x64 folder, and
 creates an installer, portable ZIP, checksums, and install notes in `release/`.
+Temporary build folders are removed, including after failures. Use `-KeepBuildFiles`
+only when debugging packaging. Install into a separate folder, never the source checkout.
 Worker scripts and native libraries stay alongside the executable.
 
 ## Credits and licenses

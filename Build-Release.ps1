@@ -1,6 +1,6 @@
 #requires -Version 5.1
 [CmdletBinding()]
-param([string]$InnoCompiler)
+param([string]$InnoCompiler, [switch]$KeepBuildFiles)
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSCommandPath
@@ -31,6 +31,7 @@ $publishRoot = Join-Path $stagingRoot 'win-x64'
 $testOutput = Join-Path $stagingRoot 'tests'
 New-Item -ItemType Directory -Force -Path $releaseRoot, $publishRoot | Out-Null
 
+try {
 Write-Host "Testing VoiceFlow $releaseVersion..."
 & dotnet test (Join-Path $projectRoot 'VoiceFlow.Tests\VoiceFlow.Tests.csproj') -c Release --nologo "-p:BaseOutputPath=$testOutput\"
 if ($LASTEXITCODE -ne 0) { throw 'Release tests failed.' }
@@ -38,7 +39,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Release tests failed.' }
 Write-Host 'Publishing the self-contained Windows x64 application...'
 # Keep files alongside the executable: model workers and native libraries use physical paths.
 & dotnet publish $projectFile -c Release -r win-x64 --self-contained true --nologo `
-    -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o $publishRoot
+    -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false "-p:BaseOutputPath=$stagingRoot\build\" -o $publishRoot
 if ($LASTEXITCODE -ne 0) { throw 'Publishing failed.' }
 
 foreach ($requiredFile in @('VoiceFlow.exe', 'hostfxr.dll', 'hostpolicy.dll',
@@ -80,4 +81,17 @@ This installer is unsigned; no code-signing certificate was provided.
 "@
 Write-Host "Installer: $installer"
 Write-Host "Portable:  $portable"
-Write-Host "Payload:   $publishRoot"
+if ($KeepBuildFiles) { Write-Host "Payload:   $publishRoot" }
+}
+finally {
+    if (-not $KeepBuildFiles -and (Test-Path -LiteralPath $stagingRoot)) {
+        $resolvedStaging = [IO.Path]::GetFullPath($stagingRoot)
+        $expectedParent = [IO.Path]::GetFullPath((Join-Path $projectRoot 'out'))
+        if ((Split-Path -Parent $resolvedStaging) -ne $expectedParent -or
+            (Split-Path -Leaf $resolvedStaging) -notmatch '^release-[0-9a-f]{32}$') {
+            throw 'Refusing to clean a staging directory outside the release workspace.'
+        }
+        Remove-Item -LiteralPath $resolvedStaging -Recurse -Force
+        Write-Host 'Temporary build files removed.'
+    }
+}

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.4 — 2026-10-26
+
+- Release builds now remove temporary test, publish, and packaging files on success or failure.
+- Installer detects source checkouts and selects a separate app subfolder instead.
+- Installer rejects source-code folders in both interactive and silent installs.
+- Settings, downloaded models, and local-model loading behavior are unchanged.
+
 ## 1.1.3 — 2026-10-25
 
 - Added offline Whisper Tiny, Base, Small Q5, and Underdog Bark 3.0 Clean models.
