@@ -12,6 +12,7 @@ public interface IGlobalHotkeyService : IDisposable
     HotkeyConfig CurrentConfig { get; }
     HotkeyActivationMode CurrentMode { get; }
 
+    event EventHandler? EscapePressed;
     event EventHandler? HotkeyPressed;
     event EventHandler? HotkeyReleased;
     event EventHandler<HotkeyConfig>? ShortcutRecorded;

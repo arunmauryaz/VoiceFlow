@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:VoiceFlow.ViewModels"
         xmlns:models="using:VoiceFlow.Models"
+        xmlns:controls="using:VoiceFlow.Controls"
         x:Class="VoiceFlow.Views.RecordingOverlayWindow"
         x:DataType="vm:RecordingOverlayViewModel"
         Title="VoiceFlow Overlay"
@@ -57,14 +58,14 @@
                                Foreground="#A1A1AA"
                                VerticalAlignment="Center" />
 
-                    <!-- 5 Dynamic White Equalizer Waveform Bars -->
-                    <StackPanel Height="28" Orientation="Horizontal" Spacing="2.5" VerticalAlignment="Center" Margin="4,0,0,0">
-                        <Border Classes="wave" Width="3" Height="{Binding LevelBar1}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
-                        <Border Classes="wave" Width="3" Height="{Binding LevelBar2}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
-                        <Border Classes="wave" Width="3" Height="{Binding LevelBar3}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
-                        <Border Classes="wave" Width="3" Height="{Binding LevelBar4}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
-                        <Border Classes="wave" Width="3" Height="{Binding LevelBar5}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
-                    </StackPanel>
+                    <controls:SpeechWaveform Width="96" Height="28" Margin="4,0,0,0" Level="{Binding AudioLevel}">
+                        <controls:SpeechWaveform.IsActive>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="IsVisible" />
+                                <Binding Path="State" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="{x:Static models:AppState.Recording}" />
+                            </MultiBinding>
+                        </controls:SpeechWaveform.IsActive>
+                    </controls:SpeechWaveform>
                 </StackPanel>
 
                 <!-- 2. TRANSCRIBING / CLEANING STATE -->

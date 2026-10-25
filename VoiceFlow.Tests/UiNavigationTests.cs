@@ -24,6 +24,29 @@ public static class UiTestApplication
 public class UiNavigationTests
 {
     [AvaloniaFact]
+    public void DismissNotchSkipsFadeDelayForRecordingAndTranscriptPopup()
+    {
+        using var overlay = new RecordingOverlayViewModel();
+        var window = new RecordingOverlayWindow(overlay);
+        try
+        {
+            overlay.ShowRecording();
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(window.IsVisible);
+            overlay.DismissPopup();
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(window.IsVisible);
+            overlay.ShowTranscriptionPopup("A completed transcript");
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(window.IsVisible);
+            overlay.DismissPopup();
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(window.IsVisible);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public async Task PopulatedHistoryRendersAndAllSidebarPagesCanBeOpened()
     {
         var settings = new MockSettingsService();

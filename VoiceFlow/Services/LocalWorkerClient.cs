@@ -21,6 +21,10 @@ public sealed class LocalWorkerClient : IDisposable
             RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
         };
+        // Prevent native math libraries from taking every core during imports/model loading.
+        string threads = LocalWorkerResources.ThreadCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        foreach (string variable in new[] { "OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS" })
+            info.Environment[variable] = threads;
         foreach (var arg in args) info.ArgumentList.Add(arg);
         return info;
     }
@@ -35,6 +39,9 @@ public sealed class LocalWorkerClient : IDisposable
         {
             _process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the local model.");
             ChildProcessLifetime.Attach(_process);
+            try { _process.PriorityClass = ProcessPriorityClass.BelowNormal; }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            { AppLogger.LogWarning("Worker priority: " + ex.Message); }
             _process.ErrorDataReceived += (_, e) =>
             {
                 if (string.IsNullOrWhiteSpace(e.Data)) return;

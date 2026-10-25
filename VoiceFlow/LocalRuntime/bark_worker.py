@@ -16,8 +16,9 @@ def main():
     with contextlib.redirect_stdout(sys.stderr):
         import torch
         import soundfile as sf
+        torch.set_num_threads(max(1, min(4, int(os.environ.get("OMP_NUM_THREADS", "2")))))
+        torch.set_num_interop_threads(1)
         from bark_loader import load_model, transcribe
-        torch.set_num_threads(max(1, min(8, (os.cpu_count() or 2) // 2)))
         device = "cuda" if len(sys.argv) > 2 and sys.argv[2] == "GPU" else "cpu"
         if device == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("GPU unavailable. Select Default or CPU.")

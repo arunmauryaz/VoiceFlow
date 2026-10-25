@@ -24,6 +24,7 @@ public partial class RecordingOverlayViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _wordCountText = string.Empty;
     [ObservableProperty] private bool _isCopied;
     [ObservableProperty] private string _copyButtonText = "Copy";
+    public bool HideImmediately { get; private set; }
     private readonly IClipboardService? _clipboardService;
     private System.Threading.CancellationTokenSource? _hideCancel;
     public RecordingOverlayViewModel() { }
@@ -89,7 +90,12 @@ public partial class RecordingOverlayViewModel : ObservableObject, IDisposable
         if (_clipboardService != null && TranscriptionText.Length > 0) await _clipboardService.SetTextAsync(TranscriptionText);
         IsCopied = true; CopyButtonText = "Copied";
     }
-    [RelayCommand] public void DismissPopup() => Hide();
-    public void Hide() { CancelHide(); IsVisible = false; IsPopupMode = false; State = AppState.Ready; }
+    [RelayCommand] public void DismissPopup() => HideCore(immediately: true);
+    public void Hide() => HideCore(immediately: false);
+    private void HideCore(bool immediately)
+    {
+        HideImmediately = immediately;
+        CancelHide(); IsVisible = false; IsPopupMode = false; State = AppState.Ready;
+    }
     public void Dispose() => CancelHide();
 }

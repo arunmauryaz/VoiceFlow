@@ -42,6 +42,7 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     public HotkeyConfig CurrentConfig => _config;
     public HotkeyActivationMode CurrentMode => _mode;
 
+    public event EventHandler? EscapePressed;
     public event EventHandler? HotkeyPressed;
     public event EventHandler? HotkeyReleased;
     public event EventHandler<HotkeyConfig>? ShortcutRecorded;
@@ -157,6 +158,10 @@ public class WindowsHotkeyService : IGlobalHotkeyService
             // Ignore injected input (including VoiceFlow's own text insertion).
             if ((kbStruct.flags & 0x10) != 0)
                 return Win32PInvoke.CallNextHookEx(_hookId, nCode, wParam, lParam);
+            // Dismiss overlays globally, including while shortcuts are paused or being edited.
+            // Continue normal Escape handling so the focused application still receives it.
+            if (isKeyDown && vk == Win32Constants.VK_ESCAPE)
+                EscapePressed?.Invoke(this, EventArgs.Empty);
             if (_captureSuppressed.Contains(vk))
             {
                 if (isKeyUp) _captureSuppressed.Remove(vk);

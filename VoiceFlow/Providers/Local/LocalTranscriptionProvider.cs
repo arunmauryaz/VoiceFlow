@@ -20,6 +20,11 @@ public sealed class LocalTranscriptionProvider : ITranscriptionProvider, IDispos
     private readonly LocalWorkerClient _whisper = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _readySignature;
+    private readonly Func<string, bool, string> _resolveDevice = ComputeDeviceService.Resolve;
+    private readonly Func<LocalModelInfo, string, CancellationToken, Task>? _startWorker;
+    internal LocalTranscriptionProvider(ISettingsService settings, LocalModelService models, BarkRuntimeService bark,
+        Func<string, bool, string> resolveDevice, Func<LocalModelInfo, string, CancellationToken, Task> startWorker)
+        : this(settings, models, bark) => (_resolveDevice, _startWorker) = (resolveDevice, startWorker);
     private readonly Timer _idleTimer;
     private long _lastUsed = Environment.TickCount64;
     private bool _disposed;
@@ -34,7 +39,7 @@ public sealed class LocalTranscriptionProvider : ITranscriptionProvider, IDispos
     }
     private async Task ReleaseIdleModelAsync()
     {
-        if (_disposed || _settings.Settings.KeepModelLoaded || Environment.TickCount64 - Interlocked.Read(ref _lastUsed) < 180000 || !await _gate.WaitAsync(0)) return;
+        if (_disposed || _settings.Settings.KeepModelLoaded || Environment.TickCount64 - Interlocked.Read(ref _lastUsed) < 900000 || !await _gate.WaitAsync(0)) return;
         try
         {
             if (_readySignature == null || _disposed) return;
@@ -50,21 +55,27 @@ public sealed class LocalTranscriptionProvider : ITranscriptionProvider, IDispos
         IsPreparing = busy;
         PreparationChanged?.Invoke(this, new(model.Id, text, percent, busy));
     }
-    private string Signature(LocalModelInfo model, string preference) => model.Id + "|" + preference + "|" + File.GetLastWriteTimeUtc(_models.ModelPath(model)).Ticks;
+    private string Signature(LocalModelInfo model, string device) => model.Id + "|" + device + "|" + File.GetLastWriteTimeUtc(_models.ModelPath(model)).Ticks;
+    private string? _fallbackSignature;
+    private readonly System.Collections.Generic.Dictionary<string, string> _verifiedModels = new();
 
     public async Task PrepareAsync(LocalModelInfo model, string preference, bool repair, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
         try { await PrepareCoreAsync(model, preference, repair, ct); }
-        catch (OperationCanceledException) { StopWorkers(); Report(model, "Setup paused", busy: false); throw; }
-        catch (Exception ex) { StopWorkers(); AppLogger.LogError("Local model preparation failed", ex); Report(model, ex.Message, busy: false); throw; }
+        catch (OperationCanceledException) { Report(model, "Setup paused", busy: false); throw; }
+        catch (Exception ex) { AppLogger.LogError("Local model preparation failed", ex); Report(model, ex.Message, busy: false); throw; }
         finally { _gate.Release(); }
     }
 
     private async Task PrepareCoreAsync(LocalModelInfo model, string preference, bool repair, CancellationToken ct)
     {
         Interlocked.Exchange(ref _lastUsed, Environment.TickCount64);
-        if (!repair && _readySignature == Signature(model, preference) && _models.IsInstalled(model))
+        // Resolve before stopping anything: an unsupported selection must not discard a working model.
+        string device = _resolveDevice(preference, model.IsBark);
+        string requestedSignature = Signature(model, device);
+        if (preference == "Default" && _fallbackSignature == requestedSignature) device = "CPU";
+        if (!repair && _readySignature == Signature(model, device) && _models.IsInstalled(model))
         {
             // EnsureReady also detects a worker which has crashed since startup.
             await StartWorkerAsync(model, ActiveDevice, ct);
@@ -72,14 +83,16 @@ public sealed class LocalTranscriptionProvider : ITranscriptionProvider, IDispos
             return;
         }
         StopWorkers();
-        string device = ComputeDeviceService.Resolve(preference, model.IsBark);
         Report(model, "Checking model...");
-        if (repair || !await _models.VerifyAsync(model, ct))
+        string fileSignature = Signature(model, "file");
+        bool verified = _verifiedModels.TryGetValue(model.Id, out var known) && known == fileSignature && _models.IsInstalled(model);
+        if (repair || (!verified && !await _models.VerifyAsync(model, ct)))
         {
             Report(model, "Downloading...");
             // Synchronous progress callback avoids delayed Ready -> Downloading regressions.
             await _models.DownloadAsync(model, new InlineProgress<double>(p => Report(model, $"Downloading · {p:0}%", p)), ct);
         }
+        _verifiedModels[model.Id] = Signature(model, "file");
         if (model.IsBark)
         {
             try { await _bark.InstallAsync(device, repair, new InlineProgress<string>(s => Report(model, s)), ct); }
@@ -107,12 +120,14 @@ public sealed class LocalTranscriptionProvider : ITranscriptionProvider, IDispos
             await StartWorkerAsync(model, device, ct);
         }
         ActiveDevice = device;
-        _readySignature = Signature(model, preference);
+        _readySignature = Signature(model, device);
+        _fallbackSignature = preference == "Default" && requestedSignature != _readySignature ? requestedSignature : null;
         Report(model, "Ready · " + device, busy: false);
     }
 
     private async Task StartWorkerAsync(LocalModelInfo model, string device, CancellationToken ct)
     {
+        if (_startWorker != null) { await _startWorker(model, device, ct); return; }
         if (model.IsBark)
         {
             await _bark.EnsureReadyAsync(_models.ModelPath(model), device, ct);
@@ -131,6 +146,7 @@ public sealed class LocalTranscriptionProvider : ITranscriptionProvider, IDispos
         try
         {
             StopWorkers();
+            _verifiedModels.Remove(model.Id);
             await _models.DeleteAsync(model, ct);
             Report(model, "Not downloaded", busy: false);
         }

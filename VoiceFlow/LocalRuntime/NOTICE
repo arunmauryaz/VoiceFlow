@@ -15,4 +15,4 @@ tokenizer and feature-extractor configuration derive from the models above and r
 VoiceFlow bundles an adapted loader and NVIDIA processor/tokenizer files for offline inference.
 Loader revision: 6d34ed8639b2b9a33e764acf06748519bbb950cf
 Processor revision: 541d1f99c6b0c3cd0b11a95167540bb8edefd82b
-Modifications: local-only processor/configuration loading and processor caching.
+Modifications: local-only processor/configuration loading and processor caching, skipped redundant weight initialization, and tensor assignment to reduce loading allocations, and an optional memory-mapped decoded weight cache.

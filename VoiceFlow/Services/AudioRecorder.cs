@@ -151,23 +151,39 @@ public class AudioRecorder : IAudioRecorder
                     _waveIn.RecordingStopped -= handler;
                 }
 
+                Stream? completedAudio = null;
+                Exception? failure = null;
                 try
                 {
                     _segmenter?.Flush();
-                    var wavStream = _segmenter == null ? CreateWavStream() : new MemoryStream();
-                    AppLogger.LogInfo($"Audio recording stopped. Duration: {_stopwatch.Elapsed.TotalSeconds:F1}s, Size: {wavStream.Length} bytes.");
-                    tcs.TrySetResult(wavStream);
+                    completedAudio = _segmenter == null ? CreateWavStream() : new MemoryStream();
+                    AppLogger.LogInfo($"Audio recording stopped. Duration: {_stopwatch.Elapsed.TotalSeconds:F1}s, Size: {completedAudio.Length} bytes.");
                 }
                 catch (Exception ex)
                 {
                     AppLogger.LogError("Failed to finalize WAV audio stream.", ex);
-                    tcs.TrySetException(ex);
+                    failure = ex;
                 }
                 finally
                 {
-                    Cleanup();
-                    RecordingStopped?.Invoke(this, EventArgs.Empty);
+                    // Release the old device before a waiting shortcut can start a new one.
+                    try
+                    {
+                        Cleanup();
+                        RecordingStopped?.Invoke(this, EventArgs.Empty);
+                    }
+                    catch (Exception ex)
+                    {
+                        failure ??= ex;
+                        AppLogger.LogError("Failed to release the recording device.", ex);
+                    }
                 }
+                if (failure != null)
+                {
+                    completedAudio?.Dispose();
+                    tcs.TrySetException(failure);
+                }
+                else tcs.TrySetResult(completedAudio!);
             };
 
             _waveIn.RecordingStopped += handler;

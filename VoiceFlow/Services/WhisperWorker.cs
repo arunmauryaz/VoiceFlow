@@ -25,7 +25,7 @@ internal static class WhisperWorker
                 try
                 {
                     using var request = JsonDocument.Parse(line);
-                    using var processor = factory.CreateBuilder().WithLanguage(request.RootElement.GetProperty("language").GetString() ?? "auto").Build();
+                    using var processor = factory.CreateBuilder().WithThreads(LocalWorkerResources.ThreadCount).WithLanguage(request.RootElement.GetProperty("language").GetString() ?? "auto").Build();
                     var text = new StringBuilder();
                     await using (var audio = File.OpenRead(request.RootElement.GetProperty("audio").GetString()!))
                     {

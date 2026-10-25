@@ -592,7 +592,7 @@
                 <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsLocalProvider}">
                     <StackPanel Spacing="3">
                         <TextBlock Text="Keep model ready" Classes="settingTitle" />
-                        <TextBlock Text="Faster starts, more memory. Off releases it after 3 minutes idle." Classes="settingDesc" TextWrapping="Wrap" />
+                        <TextBlock Text="Faster starts, more memory. Off releases it after 15 minutes idle." Classes="settingDesc" TextWrapping="Wrap" />
                     </StackPanel>
                     <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepModelLoaded}" OnContent="" OffContent="" />
                 </Grid>

@@ -81,7 +81,7 @@ Whenever you trigger your global shortcut, VoiceFlow captures high-fidelity audi
 
 ### 1. Download & Launch
 Choose the package that best fits your workflow:
-- 🚀 **Windows Installer (Recommended)**: Download **`VoiceFlow-v1.1.0-Setup.exe`** from [GitHub Releases](https://github.com/arunmauryaz/VoiceFlow/releases). Runs a quick setup wizard, creates Start Menu & Desktop shortcuts, and enables seamless system integration.
+- 🚀 **Windows Installer (Recommended)**: Download **`VoiceFlow-v1.1.3-Setup.exe`** from [GitHub Releases](https://github.com/arunmauryaz/VoiceFlow/releases). Runs a quick setup wizard, creates Start Menu & Desktop shortcuts, and enables seamless system integration.
 - 📦 **Portable ZIP**: Download **`VoiceFlow-v1.0.0-win-x64.zip`** from [GitHub Releases](https://github.com/arunmauryaz/VoiceFlow/releases), extract to any folder, and double-click `VoiceFlow.exe` to run anywhere without installation.
 
 ### 2. Enter Gemini API Key
@@ -190,7 +190,7 @@ window, sidebar, About page, and tray use the updated icon.
 Run `powershell -ExecutionPolicy Bypass -File .\Build-Release.ps1` from the
 repository root. This requires the .NET 8 SDK and Inno Setup 6. It runs the test
 suite, publishes a self-contained Windows x64 payload, and compiles
-`release/VoiceFlow-v1.1.0-Setup.exe` with a SHA-256 checksum. No .NET installation
+`release/VoiceFlow-v1.1.3-Setup.exe` with a SHA-256 checksum. No .NET installation
 is needed on the destination PC. Local model downloads and device setup remain
 automatic on first use. Close VoiceFlow before installing or upgrading.
 
@@ -375,3 +375,17 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 <p align="center">
   Built with ❤️ using <strong>.NET 8</strong>, <strong>Avalonia UI</strong>, and <strong>Google Gemini</strong>.
 </p>
+
+### Local model loading
+
+Local workers use below-normal process priority and up to four CPU threads, leaving
+capacity for foreground apps. Device changes settle for one second before setup;
+Default and an equivalent explicit device reuse the resident model. A real change
+between CPU and GPU needs a new worker. Models release after 15 idle minutes unless
+Keep model ready is enabled.
+
+Bark creates an optional decoded weight cache beside its compressed model when disk
+space permits (roughly 2.5 GB extra). Later launches memory-map it instead of decoding
+again. Delete removes both files; Repair rebuilds the cache. Cache failure falls back
+to the compressed model. First loading is still slower than loading a small Whisper
+model, and keeping a model ready retains its RAM until idle release or app exit.

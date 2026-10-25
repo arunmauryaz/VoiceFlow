@@ -32,6 +32,7 @@ public sealed class LocalModelService
         await _downloadLock.WaitAsync(ct);
         try
         {
+            DeleteDecodedCache(model);
             File.Delete(ModelPath(model));
             File.Delete(ModelPath(model) + ".partial");
         }
@@ -45,6 +46,7 @@ public sealed class LocalModelService
         try
         {
             Directory.CreateDirectory(Root);
+            DeleteDecodedCache(model);
             using var response = await _client.GetAsync(model.Url, HttpCompletionOption.ResponseHeadersRead, ct);
             response.EnsureSuccessStatusCode();
             await using var input = await response.Content.ReadAsStreamAsync(ct);
@@ -72,6 +74,15 @@ public sealed class LocalModelService
             try { if (File.Exists(partial)) File.Delete(partial); }
             finally { _downloadLock.Release(); }
         }
+    }
+
+    private void DeleteDecodedCache(LocalModelInfo model)
+    {
+        string cache = ModelPath(model) + ".voiceflow-cache-v1.pt";
+        File.Delete(cache);
+        if (Directory.Exists(Root))
+            foreach (string partial in Directory.EnumerateFiles(Root, Path.GetFileName(cache) + ".*.partial"))
+                File.Delete(partial);
     }
 
     internal static void ValidateDownload(long size, string sha, LocalModelInfo model)

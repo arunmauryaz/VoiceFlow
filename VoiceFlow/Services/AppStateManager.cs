@@ -27,6 +27,8 @@ public class AppStateManager : IDisposable
     private bool _previewOnly, _typingPaused, _continuousMode, _autoPaste, _preserveClipboard, _showOverlay;
     private float _latestLevel;
     private bool _isDisposed;
+    private int _sessionVersion;
+    private Task<Stream>? _pendingAudioStop;
     private AppState _currentState = AppState.Ready;
 
     public AppState CurrentState
@@ -56,6 +58,7 @@ public class AppStateManager : IDisposable
             _textInjectionService, _clipboardService, _overlayViewModel) =
             (settingsService, audioRecorder, transcriptionProvider, aiTextProcessor, hotkeyService,
             textInjectionService, clipboardService, overlayViewModel);
+        _hotkeyService.EscapePressed += OnEscapePressed;
         _hotkeyService.HotkeyPressed += OnHotkeyPressed;
         _hotkeyService.HotkeyReleased += OnHotkeyReleased;
         _audioRecorder.AudioLevelChanged += OnAudioLevelChanged;
@@ -73,14 +76,50 @@ public class AppStateManager : IDisposable
     private void OnHotkeyPressed(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => StartRecording());
     private void OnHotkeyReleased(object? sender, EventArgs e) => Dispatcher.UIThread.Post(async () => await StopRecordingAsync());
 
+    private void OnEscapePressed(object? sender, EventArgs e)
+        => Dispatcher.UIThread.Post(() => { if (!_isDisposed) DismissOverlay(); }, DispatcherPriority.Send);
+
+    public void DismissOverlay()
+    {
+        // Keep later completion/error callbacks from reopening this session's notch.
+        _showOverlay = false;
+        _hotkeyService.ResetActivation();
+        _overlayViewModel.DismissPopup();
+    }
+
     public bool StartRecording(bool previewOnly = false)
     {
+        bool restarting = false;
+        if (!_isDisposed && !_showOverlay && !_overlayViewModel.IsVisible && _settingsService.Settings.ShowOverlay)
+        {
+            if (CurrentState == AppState.Recording)
+            {
+                _showOverlay = true;
+                _overlayViewModel.ShowRecording();
+                _overlayViewModel.UpdateDuration(_audioRecorder.RecordingDuration);
+                return true;
+            }
+            if (CurrentState is AppState.Transcribing or AppState.Cleaning or AppState.Error && !_audioRecorder.IsRecording)
+            {
+                if (_pendingAudioStop is { IsCompleted: false } pending)
+                {
+                    _ = RestartAfterAudioStoppedAsync(pending, _sessionVersion);
+                    return true;
+                }
+                // Let a fresh shortcut start immediately, even if an old request ignores cancellation.
+                _sessionCancel?.Cancel();
+                _continuous = null; // The finishing session owns and disposes its consumer.
+                _currentState = AppState.Ready; // Preserve the freshly activated shortcut latch.
+                restarting = true;
+            }
+        }
         if (_isDisposed || CurrentState != AppState.Ready || _audioRecorder.IsRecording)
         { if (CurrentState != AppState.Recording) _hotkeyService.ResetActivation(); return false; }
-        if (_transcriptionProvider.IsPreparing)
+        _showOverlay = _settingsService.Settings.ShowOverlay;
+        if (_transcriptionProvider.IsPreparing && !restarting)
         {
             _hotkeyService.ResetActivation();
-            _overlayViewModel.ShowError("Model is preparing...");
+            if (_showOverlay) _overlayViewModel.ShowError("Model is preparing...");
             return false;
         }
         if (!_audioRecorder.HasInputDevices) { HandleError("No microphone connected"); return false; }
@@ -88,6 +127,7 @@ public class AppStateManager : IDisposable
         {
             _sessionCancel?.Dispose();
             _sessionCancel = new CancellationTokenSource();
+            int version = ++_sessionVersion;
             var settings = _settingsService.Settings;
             _previewOnly = previewOnly;
             _continuousMode = settings.OutputMode == DictationOutputMode.ContinuousTyping;
@@ -100,7 +140,7 @@ public class AppStateManager : IDisposable
             _targetControl = _textInjectionService.GetFocusedControlIdentity();
             _continuous?.Dispose();
             _continuous = _continuousMode
-                ? new ContinuousDictationSession(_transcriptionProvider, HandlePhraseAsync, _sessionCancel.Token) : null;
+                ? new ContinuousDictationSession(_transcriptionProvider, (addition, text) => HandlePhraseAsync(addition, text, version), _sessionCancel.Token) : null;
             if (_continuous != null) _continuous.Faulted += OnContinuousFaulted;
             _audioRecorder.StartRecording(settings.SelectedAudioDeviceIndex, _continuousMode);
             CurrentState = AppState.Recording;
@@ -111,19 +151,26 @@ public class AppStateManager : IDisposable
         catch (Exception ex) { AppLogger.LogError("Could not start recording", ex); HandleError("Microphone unavailable. Check your input device."); return false; }
     }
 
+    private async Task RestartAfterAudioStoppedAsync(Task<Stream> pending, int version)
+    {
+        try { await pending; }
+        catch { return; } // The original stop request reports microphone errors.
+        if (!_isDisposed && version == _sessionVersion && !_showOverlay) StartRecording();
+    }
+
     private void OnContinuousFaulted(object? sender, EventArgs e)
-        => Dispatcher.UIThread.Post(async () => { if (!_isDisposed) await StopRecordingAsync(); });
+        => Dispatcher.UIThread.Post(async () => { if (!_isDisposed && ReferenceEquals(sender, _continuous)) await StopRecordingAsync(); });
     private void OnPhraseReady(object? sender, byte[] wav)
     {
         if (_continuous != null && !_continuous.TryAdd(wav))
             Dispatcher.UIThread.Post(async () => { if (!_isDisposed) await StopRecordingAsync(); });
     }
 
-    private async Task HandlePhraseAsync(string addition, string transcript)
+    private async Task HandlePhraseAsync(string addition, string transcript, int version)
     {
         await Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            if (_isDisposed || _sessionCancel?.IsCancellationRequested != false) return;
+            if (_isDisposed || version != _sessionVersion || _sessionCancel?.IsCancellationRequested != false) return;
             PartialTranscription?.Invoke(this, transcript);
             if (_previewOnly || !_autoPaste || _typingPaused) return;
             bool focused = _textInjectionService.GetForegroundWindowHandle() == _targetHwnd
@@ -140,28 +187,35 @@ public class AppStateManager : IDisposable
     public async Task StopRecordingAsync()
     {
         if (_isDisposed || CurrentState != AppState.Recording) return;
+        int version = _sessionVersion;
+        var sessionCancel = _sessionCancel!;
+        var continuous = _continuous;
+        bool IsCurrent() => !_isDisposed && version == _sessionVersion;
         _recordingTimer.Stop();
         CurrentState = AppState.Transcribing;
         if (_showOverlay) _overlayViewModel.ShowTranscribing();
         try
         {
-            using var audio = await _audioRecorder.StopRecordingAsync();
+            _pendingAudioStop = _audioRecorder.StopRecordingAsync();
+            using var audio = await _pendingAudioStop;
+            if (!IsCurrent()) return;
             string text;
-            if (_continuous != null) text = await _continuous.CompleteAsync();
+            if (continuous != null) text = await continuous.CompleteAsync();
             else
             {
                 if (audio.Length < 1000) { FinishReady(); return; }
-                var result = await _transcriptionProvider.TranscribeAsync(audio, "audio/wav", _sessionCancel!.Token);
+                var result = await _transcriptionProvider.TranscribeAsync(audio, "audio/wav", sessionCancel.Token);
+                if (!IsCurrent()) return;
                 if (!result.Success) { HandleError(result.ErrorMessage ?? "Transcription failed."); return; }
                 text = result.Text;
                 if (!result.ProcessedLocally && _settingsService.Settings.CleanupEnabled && _settingsService.Settings.CleanupMode != TextCleanupMode.Off)
                 {
                     CurrentState = AppState.Cleaning;
                     if (_showOverlay) _overlayViewModel.ShowCleaning();
-                    text = await _aiTextProcessor.ProcessTextAsync(text, _settingsService.Settings.CleanupMode, _sessionCancel.Token);
+                    text = await _aiTextProcessor.ProcessTextAsync(text, _settingsService.Settings.CleanupMode, sessionCancel.Token);
                 }
             }
-            if (_isDisposed || _sessionCancel?.IsCancellationRequested != false) return;
+            if (!IsCurrent() || sessionCancel.IsCancellationRequested) return;
             if (string.IsNullOrWhiteSpace(text)) { FinishReady(); return; }
             LastTranscription = text;
             TranscriptionCompleted?.Invoke(this, text);
@@ -176,20 +230,25 @@ public class AppStateManager : IDisposable
                 else if (_showOverlay) _overlayViewModel.ShowSuccess("Inserted");
             }
             else await ShowCopyFallbackAsync(text);
-            CurrentState = AppState.Ready;
+            if (IsCurrent()) CurrentState = AppState.Ready;
         }
-        catch (OperationCanceledException) { FinishReady(); }
+        catch (OperationCanceledException) { if (IsCurrent()) FinishReady(); }
         catch (Exception ex)
         {
+            if (!IsCurrent()) return;
             AppLogger.LogError("Recording/transcription failed", ex);
-            if (!string.IsNullOrEmpty(_continuous?.Transcript))
+            if (!string.IsNullOrEmpty(continuous?.Transcript))
             {
-                LastTranscription = _continuous.Transcript;
+                LastTranscription = continuous.Transcript;
                 TranscriptionCompleted?.Invoke(this, LastTranscription);
             }
             HandleError(ex.Message);
         }
-        finally { _continuous?.Dispose(); _continuous = null; }
+        finally
+        {
+            continuous?.Dispose();
+            if (ReferenceEquals(_continuous, continuous)) _continuous = null;
+        }
     }
 
     private async Task ShowCopyFallbackAsync(string text)
@@ -203,10 +262,13 @@ public class AppStateManager : IDisposable
         _recordingTimer.Stop();
         _sessionCancel?.Cancel();
         CurrentState = AppState.Transcribing;
-        using var discarded = await _audioRecorder.StopRecordingAsync();
-        _continuous?.Dispose();
-        _continuous = null;
-        FinishReady();
+        int version = _sessionVersion;
+        var continuous = _continuous;
+        _pendingAudioStop = _audioRecorder.StopRecordingAsync();
+        using var discarded = await _pendingAudioStop;
+        continuous?.Dispose();
+        if (ReferenceEquals(_continuous, continuous)) _continuous = null;
+        if (version == _sessionVersion) FinishReady();
     }
     private void FinishReady() { if (_isDisposed) return; _overlayViewModel.Hide(); CurrentState = AppState.Ready; }
     private void OnAudioLevelChanged(object? sender, float level) => Volatile.Write(ref _latestLevel, level);
@@ -228,7 +290,7 @@ public class AppStateManager : IDisposable
         LastErrorMessage = message;
         CurrentState = AppState.Error;
         ErrorOccurred?.Invoke(this, message);
-        if (_settingsService.Settings.ShowOverlay) _overlayViewModel.ShowError(message);
+        if (_showOverlay) _overlayViewModel.ShowError(message);
         DispatcherTimer.RunOnce(() => { if (!_isDisposed && CurrentState == AppState.Error) CurrentState = AppState.Ready; }, TimeSpan.FromSeconds(3));
     }
     public void Dispose()
@@ -237,6 +299,7 @@ public class AppStateManager : IDisposable
         _isDisposed = true;
         _sessionCancel?.Cancel();
         _continuous?.Dispose();
+        _hotkeyService.EscapePressed -= OnEscapePressed;
         _hotkeyService.HotkeyPressed -= OnHotkeyPressed;
         _hotkeyService.HotkeyReleased -= OnHotkeyReleased;
         _audioRecorder.AudioLevelChanged -= OnAudioLevelChanged;

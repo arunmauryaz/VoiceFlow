@@ -56,6 +56,7 @@ public partial class RecordingOverlayWindow : Window
                     else
                     {
                         NotchCard.Opacity = 0;
+                        if (vm.HideImmediately) { Hide(); return; }
                         await System.Threading.Tasks.Task.Delay(170);
                         if (!_closed && !vm.IsVisible) Hide();
                     }

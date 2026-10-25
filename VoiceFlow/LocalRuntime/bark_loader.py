@@ -1,5 +1,5 @@
 # Adapted from ConwayResearch/Underdog-Bark-3.0-Clean, revision 6d34ed8639b2b9a33e764acf06748519bbb950cf.
-# CC-BY-4.0. Changes: offline bundled processor configuration and processor caching. See NOTICE.
+# CC-BY-4.0. Changes: offline bundled processor configuration and processor caching, and reduced loading allocations. See NOTICE.
 """Load a .bark file into a stock transformers ParakeetForTDT and transcribe.
 
 Formats "bark-levels-v2" and "bark-levels-v3" (v3 = v2 with LZMA on the small side blobs: levels, scales, fp16 tensors):
@@ -14,6 +14,8 @@ Decoding is exact: the weights you get are the weights that were evaluated.
 """
 import json
 import lzma
+import os
+import shutil
 import sys
 from pathlib import Path
 from functools import lru_cache
@@ -93,11 +95,54 @@ def load_state_dict(path, as_numpy=False):
     return sd, json.loads(head["config"])
 
 
+def _load_decoded(path):
+    """A single rebuildable disk cache avoids entropy decoding on each launch.
+
+    mmap keeps CPU weights file-backed instead of eagerly copying the entire cache.
+    Never deserialize arbitrary Python objects from the cache.
+    """
+    source = Path(path)
+    stat = source.stat()
+    identity = (stat.st_size, stat.st_mtime_ns)
+    cache = Path(str(source) + ".voiceflow-cache-v1.pt")
+    if cache.exists():
+        try:
+            saved = torch.load(cache, map_location="cpu", weights_only=True, mmap=True)
+            if saved.get("source") == identity and saved.get("version") == 1:
+                return saved["weights"], saved["config"]
+            del saved
+        except Exception as exc:
+            print(f"Rebuilding decoded model cache: {exc}", file=sys.stderr)
+    sd, cfg = load_state_dict(path)
+    partial = Path(str(cache) + f".{os.getpid()}.partial")
+    try:
+        required = sum(t.numel() * t.element_size() for t in sd.values())
+        # Cache is optional; leave room for the rest of the system and retain the
+        # validated compressed model if space is limited or writes are denied.
+        if shutil.disk_usage(source.parent).free > required + 512 * 1024 * 1024:
+            torch.save({"version": 1, "source": identity, "weights": sd, "config": cfg}, partial)
+            os.replace(partial, cache)
+    except (OSError, RuntimeError) as exc:
+        print(f"Decoded cache unavailable: {exc}", file=sys.stderr)
+    finally:
+        try:
+            partial.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return sd, cfg
+
+
 def load_model(path, device="cpu", dtype=None):
     from transformers import GenerationConfig, ParakeetForTDT, ParakeetTDTConfig
-    sd, cfg = load_state_dict(path)
-    model = ParakeetForTDT(ParakeetTDTConfig.from_dict(cfg))
-    missing, unexpected = model.load_state_dict({k: v.float() for k, v in sd.items()}, strict=False)
+    from transformers.initialization import no_init_weights
+    sd, cfg = _load_decoded(path)
+    # Keep real buffers (including non-persistent positional encodings), but do not
+    # randomly initialize 600M parameters that will immediately be replaced.
+    with no_init_weights():
+        model = ParakeetForTDT(ParakeetTDTConfig.from_dict(cfg))
+    # Adopt decoded tensors instead of copying a second full set of weights.
+    missing, unexpected = model.load_state_dict(sd, strict=False, assign=True)
+    del sd
     assert not unexpected and all("num_batches_tracked" in m for m in missing), (missing[:5], unexpected[:5])
     model.generation_config = GenerationConfig.from_pretrained(PROCESSOR_PATH, local_files_only=True)
     return model.eval().to(device=device, dtype=dtype or torch.float32)

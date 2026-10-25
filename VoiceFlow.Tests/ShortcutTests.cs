@@ -16,6 +16,20 @@ public class ShortcutTests
     }
 
     [Theory]
+    [InlineData(0x79)]
+    [InlineData(0x77)]
+    public void DismissalRearmsToggleAndHoldForTheNextFreshPress(int shortcut)
+    {
+        var state = Create(new uint[] { 0x77 });
+        Assert.Equal(1, state.Process((uint)shortcut, true).Action);
+        state.Process((uint)shortcut, false);
+        state.ResetActivation(); // Escape dismisses and rearms the active shortcut.
+        Assert.Equal(1, state.Process((uint)shortcut, true).Action);
+        state.Process((uint)shortcut, false);
+        if (shortcut == 0x79) Assert.Equal(-1, state.Process((uint)shortcut, true).Action);
+    }
+
+    [Theory]
     [InlineData(0x10, 0x11, 0x5B)]
     [InlineData(0x5B, 0x10, 0x11)]
     [InlineData(0x11, 0x5B, 0x10)]

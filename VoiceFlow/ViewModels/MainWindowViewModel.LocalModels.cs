@@ -17,8 +17,12 @@ public partial class MainWindowViewModel
     private readonly BarkRuntimeService _barkRuntime;
     private readonly LocalTranscriptionProvider _localProvider;
     private CancellationTokenSource? _localOperation;
+    private CancellationTokenSource? _localSelectionDelay;
+    private LocalModelInfo? _preparingModel;
+    private string? _preparingPreference;
     private bool _localInitializationStarted;
     private int _localOperationVersion;
+    private int _localSelectionVersion;
     public IReadOnlyList<LocalModelInfo> AvailableLocalModels => LocalModels.All;
     public IReadOnlyList<string> LocalLanguages { get; } = new[] { "Auto detect", "English", "Hindi" };
     public IReadOnlyList<string> ComputeDevices { get; } = new[] { "Default", "CPU", "GPU" };
@@ -74,8 +78,8 @@ public partial class MainWindowViewModel
         RefreshLocalStatus();
         if (_localInitializationStarted)
         {
-            if (IsLocalProvider) _ = PrepareSelectedLocalModelAsync(false);
-            else { _localOperation?.Cancel(); }
+            if (IsLocalProvider) _ = PrepareSelectedLocalModelAsync(false, debounce: true);
+            else { _localSelectionDelay?.Cancel(); _localOperation?.Cancel(); }
         }
     }
 
@@ -90,7 +94,7 @@ public partial class MainWindowViewModel
         if (_localInitializationStarted) _settingsService.Settings.AutoPrepareLocalModel = true;
         AutoPersistSettings();
         RefreshLocalStatus();
-        if (_localInitializationStarted && IsLocalProvider) _ = PrepareSelectedLocalModelAsync(false);
+        if (_localInitializationStarted && IsLocalProvider) _ = PrepareSelectedLocalModelAsync(false, debounce: true);
     }
 
     partial void OnSelectedComputeDeviceChanged(string value)
@@ -99,7 +103,7 @@ public partial class MainWindowViewModel
         _settingsService.Settings.LocalComputeDevice = value;
         AutoPersistSettings();
         if (_localInitializationStarted && IsLocalProvider && _settingsService.Settings.AutoPrepareLocalModel)
-            _ = PrepareSelectedLocalModelAsync(false);
+            _ = PrepareSelectedLocalModelAsync(false, debounce: true);
     }
 
     partial void OnSelectedLocalLanguageChanged(string value)
@@ -132,18 +136,43 @@ public partial class MainWindowViewModel
         });
     }
 
-    private async Task PrepareSelectedLocalModelAsync(bool repair)
+    private async Task PrepareSelectedLocalModelAsync(bool repair, bool debounce = false)
     {
+        int selectionVersion = ++_localSelectionVersion;
+        _localSelectionDelay?.Cancel();
+        if (debounce)
+        {
+            using var delay = new CancellationTokenSource();
+            _localSelectionDelay = delay;
+            try { await Task.Delay(1000, delay.Token); }
+            catch (OperationCanceledException) { return; }
+            finally { if (ReferenceEquals(_localSelectionDelay, delay)) _localSelectionDelay = null; }
+        }
+        if (selectionVersion != _localSelectionVersion) return;
+        var model = SelectedLocalModel;
+        string device = SelectedComputeDevice;
+        if (!repair && _localOperation != null && _preparingModel?.Id == model.Id)
+        {
+            try
+            {
+                bool equivalent = await Task.Run(() => ComputeDeviceService.Resolve(device, model.IsBark)
+                    == ComputeDeviceService.Resolve(_preparingPreference!, model.IsBark));
+                if (equivalent || selectionVersion != _localSelectionVersion) return;
+            }
+            catch (Exception ex) { LocalModelStatus = ex.Message; return; }
+        }
         _localOperation?.Cancel();
         int version = ++_localOperationVersion;
         using var operation = new CancellationTokenSource(TimeSpan.FromMinutes(45));
         _localOperation = operation;
-        IsLocalBusy = true;
-        IsLocalProgressIndeterminate = true;
-        LocalModelStatus = "Preparing...";
+        _preparingModel = model;
+        _preparingPreference = device;
         try
         {
-            await _localProvider.PrepareAsync(SelectedLocalModel, SelectedComputeDevice, repair, operation.Token);
+            IsLocalBusy = true;
+            IsLocalProgressIndeterminate = true;
+            LocalModelStatus = "Preparing...";
+            await Task.Run(() => _localProvider.PrepareAsync(model, device, repair, operation.Token), operation.Token);
         }
         catch (OperationCanceledException) { if (version == _localOperationVersion) LocalModelStatus = "Setup paused"; }
         catch (Exception ex) { if (version == _localOperationVersion) LocalModelStatus = ex.Message; }
@@ -177,6 +206,8 @@ public partial class MainWindowViewModel
     private async Task DeleteLocalModelAsync()
     {
         if (!CanManageLocalModel) return;
+        ++_localSelectionVersion;
+        _localSelectionDelay?.Cancel();
         _localOperation?.Cancel();
         _settingsService.Settings.AutoPrepareLocalModel = false;
         AutoPersistSettings();
@@ -185,6 +216,6 @@ public partial class MainWindowViewModel
         catch (Exception ex) { LocalModelStatus = ex.Message; }
         finally { IsLocalBusy = false; NotifyLocalActions(); }
     }
-    [RelayCommand] private void CancelLocalOperation() => _localOperation?.Cancel();
-    public void CancelLocalSetup() => _localOperation?.Cancel();
+    [RelayCommand] private void CancelLocalOperation() => CancelLocalSetup();
+    public void CancelLocalSetup() { ++_localSelectionVersion; _localSelectionDelay?.Cancel(); _localOperation?.Cancel(); }
 }
