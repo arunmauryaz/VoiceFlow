@@ -1,8 +1,16 @@
 #define MyAppName "VoiceFlow"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.1.0"
+#endif
 #define MyAppPublisher "VoiceFlow Contributors"
 #define MyAppURL "https://github.com/arunmauryaz/VoiceFlow"
 #define MyAppExeName "VoiceFlow.exe"
+#ifndef PublishDir
+  #define PublishDir SourcePath + "publish\win-x64"
+#endif
+#ifndef ReleaseDir
+  #define ReleaseDir SourcePath + "release"
+#endif
 
 [Setup]
 AppId={{D37E75D9-38B9-45B0-8041-0D4A198B75AC}
@@ -15,10 +23,14 @@ AppUpdatesURL={#MyAppURL}/releases
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
-LicenseFile=D:\WISPER-GEM\LICENSE
-OutputDir=D:\WISPER-GEM\publish
-OutputBaseFilename=VoiceFlow-v1.0.0-Setup
-SetupIconFile=D:\WISPER-GEM\VoiceFlow\Assets\app-icon.ico
+LicenseFile={#SourcePath}LICENSE
+OutputDir={#ReleaseDir}
+OutputBaseFilename=VoiceFlow-v{#MyAppVersion}-Setup
+SetupIconFile={#SourcePath}VoiceFlow\Assets\app-icon.ico
+VersionInfoVersion={#MyAppVersion}
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+MinVersion=10.0.19041
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -27,16 +39,17 @@ PrivilegesRequiredOverridesAllowed=dialog
 UninstallDisplayIcon={app}\{#MyAppExeName}
 CloseApplications=yes
 RestartApplications=no
+AppMutex=Local\VoiceFlow.Desktop
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "startupicon"; Description: "Start VoiceFlow automatically when Windows starts"; GroupDescription: "Windows Startup:"
+Name: "startupicon"; Description: "Start VoiceFlow automatically when Windows starts"; GroupDescription: "Windows Startup:"; Flags: unchecked
 
 [Files]
-Source: "D:\WISPER-GEM\publish\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PublishDir}\*"; DestDir: "{app}"; Excludes: "*.pdb,*.partial,__pycache__\*,*.pyc"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"
