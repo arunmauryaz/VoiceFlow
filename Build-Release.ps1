@@ -55,18 +55,29 @@ Write-Host 'Compiling the Windows installer...'
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
 
 $installer = Join-Path $releaseRoot "VoiceFlow-v$releaseVersion-Setup.exe"
-$checksum = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
-Set-Content -LiteralPath (Join-Path $releaseRoot 'SHA256SUMS.txt') -Encoding ascii -Value "$checksum  $([IO.Path]::GetFileName($installer))"
+$portable = Join-Path $releaseRoot "VoiceFlow-v$releaseVersion-win-x64.zip"
+$stagedPortable = Join-Path $stagingRoot ([IO.Path]::GetFileName($portable))
+Write-Host 'Creating the portable ZIP...'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[IO.Compression.ZipFile]::CreateFromDirectory($publishRoot, $stagedPortable, [IO.Compression.CompressionLevel]::Optimal, $false)
+Move-Item -LiteralPath $stagedPortable -Destination $portable -Force
+$checksums = foreach ($artifact in @($installer, $portable)) {
+    $checksum = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$checksum  $([IO.Path]::GetFileName($artifact))"
+}
+Set-Content -LiteralPath (Join-Path $releaseRoot 'SHA256SUMS.txt') -Encoding ascii -Value $checksums
 Set-Content -LiteralPath (Join-Path $releaseRoot 'INSTALL.txt') -Encoding ascii -Value @"
 VoiceFlow $releaseVersion - Windows x64
 
 Close VoiceFlow, then run VoiceFlow-v$releaseVersion-Setup.exe.
-The .NET runtime is included. Local models download on selection.
+Or extract VoiceFlow-v$releaseVersion-win-x64.zip and run VoiceFlow.exe.
+Keep all portable files together.
+The .NET runtime is included in both packages. Local models download on selection.
 CPU/GPU model setup is automatic and needs internet on first use.
 Start with Windows is optional and unchecked by default.
 This installer is unsigned; no code-signing certificate was provided.
 
-Build payload: $publishRoot
 "@
 Write-Host "Installer: $installer"
+Write-Host "Portable:  $portable"
 Write-Host "Payload:   $publishRoot"

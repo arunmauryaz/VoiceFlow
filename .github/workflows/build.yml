@@ -29,11 +29,11 @@ jobs:
     - name: Run Tests
       run: dotnet test VoiceFlow.Tests/VoiceFlow.Tests.csproj -c Release --no-build --verbosity normal
 
-    - name: Publish Windows x64 Executable
-      run: dotnet publish VoiceFlow/VoiceFlow.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./artifacts/win-x64
+    - name: Publish Windows x64 Application
+      run: dotnet publish VoiceFlow/VoiceFlow.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ./artifacts/win-x64
 
     - name: Upload Release Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: VoiceFlow-win-x64
-        path: ./artifacts/win-x64/*
+        path: ./artifacts/win-x64/
