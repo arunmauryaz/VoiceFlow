@@ -6,6 +6,9 @@ namespace VoiceFlow.ViewModels;
 
 public partial class MainWindowViewModel
 {
+    public string AppVersion => typeof(MainWindowViewModel).Assembly.GetName().Version?.ToString(3) ?? "1.1.0";
+    public string AppVersionLabel => "VoiceFlow for Windows v" + AppVersion;
+    public string AboutVersionLabel => "Version " + AppVersion + " · Windows · MIT license";
     [ObservableProperty] private bool _isContinuousTyping;
     [ObservableProperty] private bool _keepModelLoaded;
     public bool InsertWhenFinished

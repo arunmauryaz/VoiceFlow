@@ -81,7 +81,7 @@ Whenever you trigger your global shortcut, VoiceFlow captures high-fidelity audi
 
 ### 1. Download & Launch
 Choose the package that best fits your workflow:
-- 🚀 **Windows Installer (Recommended)**: Download **`VoiceFlow-v1.0.0-Setup.exe`** from [GitHub Releases](https://github.com/arunmauryaz/VoiceFlow/releases). Runs a quick setup wizard, creates Start Menu & Desktop shortcuts, and enables seamless system integration.
+- 🚀 **Windows Installer (Recommended)**: Download **`VoiceFlow-v1.1.0-Setup.exe`** from [GitHub Releases](https://github.com/arunmauryaz/VoiceFlow/releases). Runs a quick setup wizard, creates Start Menu & Desktop shortcuts, and enables seamless system integration.
 - 📦 **Portable ZIP**: Download **`VoiceFlow-v1.0.0-win-x64.zip`** from [GitHub Releases](https://github.com/arunmauryaz/VoiceFlow/releases), extract to any folder, and double-click `VoiceFlow.exe` to run anywhere without installation.
 
 ### 2. Enter Gemini API Key
@@ -184,6 +184,15 @@ or crashes. Only one desktop instance runs at a time. Logs rotate at 2 MB.
 The monochrome icon's master and exact built-in image-generation prompt are in
 `docs/design/voiceflow-icon.png` and `docs/design/icon-prompt.txt`. The executable,
 window, sidebar, About page, and tray use the updated icon.
+
+### Build the Windows installer
+
+Run `powershell -ExecutionPolicy Bypass -File .\Build-Release.ps1` from the
+repository root. This requires the .NET 8 SDK and Inno Setup 6. It runs the test
+suite, publishes a self-contained Windows x64 payload, and compiles
+`release/VoiceFlow-v1.1.0-Setup.exe` with a SHA-256 checksum. No .NET installation
+is needed on the destination PC. Local model downloads and device setup remain
+automatic on first use. Close VoiceFlow before installing or upgrading.
 
 ### Prerequisites
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)

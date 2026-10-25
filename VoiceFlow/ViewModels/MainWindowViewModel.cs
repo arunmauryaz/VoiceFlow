@@ -1423,7 +1423,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void CheckForUpdates()
     {
-        ConnectionStatusMessage = "VoiceFlow is up to date (v1.0.0).";
+        ConnectionStatusMessage = $"Current version: {AppVersion}";
         ConnectionStatusColor = "#10B981";
     }
 }

@@ -106,7 +106,7 @@
                 <StackPanel Grid.Row="5" Margin="20,0,20,20" Spacing="4">
                     <TextBlock Text="{Binding SidebarStatus}" FontSize="12" Foreground="{Binding SidebarStatusColor}" />
 
-                    <TextBlock Text="VoiceFlow for Windows v1.0.0"
+                    <TextBlock Text="{Binding AppVersionLabel}"
                                FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}" />
                 </StackPanel>
