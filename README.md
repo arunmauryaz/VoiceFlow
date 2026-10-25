@@ -1,162 +1,128 @@
+<p align="center"><img src="docs/screenshots/banner.svg" alt="VoiceFlow — voice typing, in your flow" width="100%" /></p>
+<p align="center"><img src="docs/screenshots/logo.png" alt="VoiceFlow logo" width="88" /></p>
+<h1 align="center">Your voice. Your models. Your Windows PC.</h1>
+<p align="center">Open-source dictation with local Whisper / Bark or Gemini cloud.</p>
 <p align="center">
-  <img src="docs/screenshots/banner.svg" alt="VoiceFlow — voice typing, in your flow" width="100%" />
-</p>
-<p align="center">
-  <img src="docs/screenshots/logo.png" alt="VoiceFlow logo" width="96" />
-</p>
-<h1 align="center">VoiceFlow</h1>
-<p align="center">Local and cloud voice typing for Windows.</p>
-<p align="center">
-  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/latest"><img src="https://img.shields.io/github/v/release/arunmauryaz/VoiceFlow?style=flat-square&amp;label=release" alt="Latest release" /></a>
-  <img src="https://img.shields.io/badge/Windows-10%20%2F%2011-686f7c?style=flat-square" alt="Windows 10 and 11" />
+  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/latest"><img src="https://img.shields.io/github/v/release/arunmauryaz/VoiceFlow?style=flat-square" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/Windows-x64-686f7c?style=flat-square" alt="Windows x64" />
+  <img src="https://img.shields.io/badge/status-active%20development-426b59?style=flat-square" alt="Active development" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-686f7c?style=flat-square" alt="MIT license" /></a>
 </p>
 <p align="center">
-  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-Setup.exe"><strong>Download installer</strong></a>
-  &nbsp; · &nbsp;
-  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-win-x64.zip">Portable ZIP</a>
-  &nbsp; · &nbsp;
-  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/latest">Release notes</a>
+  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-Setup.exe"><strong>Download installer</strong></a> ·
+  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-win-x64.zip">Portable ZIP</a> ·
+  <a href="https://github.com/arunmauryaz/VoiceFlow/releases/latest">What's new</a> ·
+  <a href="https://github.com/arunmauryaz/VoiceFlow/issues">Feedback</a>
 </p>
 
-VoiceFlow turns speech into text in your focused text field. Choose a local Whisper
-or Underdog Bark model, or use Gemini with your own API key. Use a hold shortcut,
-a toggle shortcut, or the Home screen to start dictation.
+Speak into the text field you're already using. Choose on-device recognition or
+Gemini, then use a hold or toggle shortcut. No VoiceFlow subscription; Gemini API
+usage may incur provider charges.
 
-## Recent improvements
+<p align="center"><img src="docs/readme/dictation-flow.svg" alt="Hold or toggle a shortcut → local Whisper/Bark or Gemini → complete text or recognized phrases in your focused text field" width="100%" /></p>
 
-- **Smaller development footprint.** Release builds clean up their temporary files;
-  the installer keeps app files separate from source checkouts.
-- **Faster local loading.** Reuse resident models and skip unnecessary reloads for
-  equivalent Default/CPU selections. Rapid device changes settle before setup.
-- **Bark loading cache.** Later starts reuse decoded, memory-mapped weights. On the
-  development PC, Ready took about 8 seconds with cache versus 52 seconds decoding
-  without it. Timings depend on hardware; the first cache build takes longer.
-- **Escape and restart.** Esc instantly hides the notch. The next shortcut press
-  restores listening, or starts a fresh recording if the dismissed session is
-  processing. Superseded results cannot overwrite the new session.
-- **Flowing waveform.** A microphone-driven waveform travels left to right while
-  listening; its animation stops when hidden.
+| ⌨️ Your shortcuts | 🎙️ Your output | 🪟 Your workspace |
+| :--- | :--- | :--- |
+| Independent hold + toggle; 1–3 keys | When finished or continuous phrases | Floating waveform, History, light/dark themes |
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release summary.
+## Which PC can use it?
 
-## Features
+<p align="center"><img src="docs/readme/pc-guide.svg" alt="Suggested starting points: 4 GB class: try Gemini cloud; 8 GB: Whisper Tiny/Base; 16 GB or more: Small Q5 or English-only Bark. These RAM bands are recommendations, not validated minimums." width="100%" /></p>
 
-- **Local or cloud transcription:** Whisper Tiny, Base, Small Q5, Underdog Bark
-  3.0 Clean, and Gemini. Local transcription stays local and never falls back to
-  cloud transcription or Gemini cleanup.
-- **Two independent shortcuts:** configure hold-to-talk and toggle separately.
-  Click each key box to build a shortcut using one, two, or three keys.
-- **Two output modes:** insert a complete transcript **When finished**, or use
-  **Continuous typing** to insert phrases as pauses are recognized.
-- **Automatic model setup:** select a model to download it. Select Default, CPU,
-  or GPU; the required backend is prepared automatically. Repair and Delete are
-  available after download.
-- **A compact recording notch:** live waveform, duration, processing state, and a
-  copyable result when a text field is unavailable.
-- **Light and dark themes, local History, and a tray app.** Closing the window
-  keeps VoiceFlow available; use the tray's Exit command to quit.
-- **Background efficiency:** bounded audio queues, temporary recording files,
-  below-normal worker priority, and a maximum of four CPU threads per worker.
+**Minimum platform requirements**
 
-## Install
+| Mode | Required |
+| --- | --- |
+| App + Gemini | Windows 10 build 19041+ or Windows 11, **x64**, microphone, internet + your Gemini API key |
+| Local Whisper | **Windows 11**, x64 CPU with **AVX / AVX2 / FMA / F16C**, [VC++ 2022 x64 runtime](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
+| GPU acceleration | Optional. Whisper: compatible **Vulkan** GPU. Bark: compatible **NVIDIA GPU + CUDA driver 12.6+** |
 
-Download the **[v1.1.4 installer](https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-Setup.exe)**,
-or extract the **[portable ZIP](https://github.com/arunmauryaz/VoiceFlow/releases/download/v1.1.4/VoiceFlow-v1.1.4-win-x64.zip)**
-and launch `VoiceFlow.exe`. Keep all portable files together.
+The RAM bands above are starting recommendations; a validated minimum across all
+PCs has not been established. Local setup needs internet once. The app is Windows
+x64 only; native Windows ARM packages are not provided. [Hardware details →](docs/GUIDE.md#hardware-and-models)
 
-Close the existing app from its tray before upgrading. Both packages include
-.NET; a separate .NET installation is not required. The installer is unsigned.
-SHA-256 checksums are attached to the release as `SHA256SUMS.txt`.
+## Models available today
 
-### Requirements
+<p align="center"><img src="docs/readme/model-downloads.svg" alt="Weight downloads: Whisper Tiny ~78 MB, Base ~148 MB, Small Q5 ~190 MB, Bark Clean ~180 MB. Whisper is multilingual; Bark is English only with filler cleanup. Gemini has no local weights. These sizes exclude runtime/cache and do not represent RAM usage." width="100%" /></p>
 
-- Windows 10 version 19041 or newer, or Windows 11, x64, and a microphone.
-- Local Whisper's native backend requires Windows 11, AVX2/FMA/F16C, and the
-  [Visual C++ 2022 x64 redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe).
-- Internet for initial model/backend downloads, or whenever using Gemini.
-- A [Gemini API key](https://aistudio.google.com/) only when choosing Gemini.
-- Bark expands to several GB in memory. Its optional decoded cache uses roughly
-  2.5 GB of additional disk space; insufficient cache space falls back to normal loading.
+**Start with Whisper Tiny or Base** for local dictation. Choose Small Q5 when you
+have more compute headroom; choose Bark for English speech with built-in filler
+cleanup. Select **Default / CPU / GPU** in Settings; setup, Repair, and Delete are built in.
 
-## Get started
+| Disk use | What to expect |
+| --- | --- |
+| App, including .NET + uninstaller | About **195 MB** |
+| Whisper | Model weights above; optional GPU backend adds storage |
+| Bark | Weights **plus several GB** for its Python runtime and optional **~2.5 GB decoded cache** |
 
-1. Open **Settings → Transcription**. Choose **Local models (offline)** and a model,
-   or choose Gemini and enter your API key.
-2. Keep Device on **Default**, or explicitly select **CPU** or **GPU**.
-3. Set your shortcuts. New installations use **Ctrl + Space** for hold-to-talk and
-   **F10** for toggle; existing installations keep their saved shortcuts.
-4. Focus a text field. Hold your shortcut while speaking, or press the toggle
-   shortcut to start and press it again to finish.
-5. Under **Settings → Dictation → Text output**, choose **When finished** or
-   **Continuous typing**.
+Local audio recognition stays on your PC and never falls back to Gemini. Cloud
+mode sends audio to Gemini. Transcripts are kept in local History.
+[Storage and privacy →](docs/GUIDE.md#storage-and-privacy)
 
-Esc dismisses the notch without stopping an active recording. Press your shortcut
-again to restore it. If it is processing, the next shortcut starts a new recording
-and cancels the previous processing request. The Home button previews text inside
-VoiceFlow. Continuous insertion pauses if you move to a different window or text
-field; the full recognized transcript remains available to copy.
+## How does it compare?
 
-## Local models
+A feature comparison, **not an accuracy or speed ranking**. Checked against official
+sources on **26 October 2026**. Products and plans can change.
 
-| Model | Weight download | Languages |
-| --- | ---: | --- |
-| Whisper Tiny | 78 MB | Multilingual |
-| Whisper Base | 148 MB | Multilingual |
-| Whisper Small Q5 | 190 MB | Multilingual |
-| Underdog Bark 3.0 Clean | 180 MB | English |
+| | **VoiceFlow** | **Wispr Flow** | **Handy** | **Windows voice typing** |
+| --- | --- | --- | --- | --- |
+| Platforms | Windows x64 | Windows, macOS, iOS, Android | Windows, macOS, Linux | Windows |
+| Speech recognition | Local **or** Gemini | Cloud | Local | Cloud |
+| Offline after setup | ✅ Local models | — | ✅ | — |
+| Engine choice | Whisper / Bark / Gemini | Managed by service | Whisper / Parakeet | Managed by Windows |
+| Cost | Free app; API usage extra | Free + paid plans | Free, open source | Included with Windows |
+| A good fit for | Local/cloud choice on Windows | Managed cross-device dictation | Offline desktop dictation | Built-in online dictation |
 
-Default chooses a compatible GPU and falls back to CPU if initialization fails.
-Whisper uses Vulkan on compatible AMD, Intel, and NVIDIA GPUs. Bark's GPU backend
-requires a compatible NVIDIA GPU and CUDA driver 12.6 or newer; use CPU on AMD.
-A genuine CPU/GPU change needs a new worker.
+Sources: [Wispr platforms](https://docs.wisprflow.ai/articles/1036674442-supported-devices-and-system-requirements),
+[cloud processing](https://wisprflow.ai/enterprise-privacy),
+[plans](https://docs.wisprflow.ai/articles/9559327591),
+[Handy](https://github.com/cjpais/Handy),
+[Windows voice typing](https://support.microsoft.com/en-us/accessibility/windows/use-voice-typing-to-talk-instead-of-type-on-your-pc).
+Windows **Voice Access** is a separate feature with offline support; this table compares **Win + H voice typing**.
 
-Models live in `%LOCALAPPDATA%\VoiceFlow\Models`. Downloads are pinned and checked
-before activation. Bark creates an isolated Python runtime without changing global
-Python packages. **Repair model** refreshes setup and weights and rebuilds its cache;
-**Delete model** removes the selected weights and decoded cache. Deleted models stay
-removed until you download or select them again. Shared runtimes remain installed.
+## From download to dictation
 
-Models release after **15 minutes idle** unless **Keep model ready** is enabled.
-Keeping a model ready avoids reloads but retains its memory. Workers exit with the
-app, and logs rotate at 2 MB. Local recognition still saves transcripts in History.
+| 1 · Install | 2 · Choose | 3 · Speak |
+| --- | --- | --- |
+| Run the installer or extract the full ZIP | Settings → Transcription → local model or Gemini | Focus a text field; hold **Ctrl + Space** or toggle **F10** |
 
-## Build and debug
+These are fresh-install shortcuts; existing shortcuts are preserved. Under
+**Settings → Dictation**, choose **When finished** or **Continuous typing**.
 
-Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
-Double-click **[Run-VoiceFlow.bat](Run-VoiceFlow.bat)** to build the current source
-and launch it. Exit the existing tray app first. Build errors stay visible.
+**Esc** hides the notch. Your next shortcut restores listening; if the dismissed
+session is processing, it starts a fresh recording. Home previews text inside the app.
 
-```powershell
-dotnet restore VoiceFlow.sln
-dotnet test VoiceFlow.Tests/VoiceFlow.Tests.csproj -c Release
-dotnet run --project VoiceFlow/VoiceFlow.csproj
-```
+<details>
+<summary>Install notes</summary>
 
-Logs: `%APPDATA%\VoiceFlow\voiceflow.log`.
+Close the tray app before upgrading. .NET is included; no SDK or separate .NET
+installation is needed. The installer is unsigned. Verify downloads using the
+release's `SHA256SUMS.txt`. Install into a separate app folder, not a source checkout.
 
-### Build release packages
+</details>
 
-Install Inno Setup 6, then run:
+## Built in public, improving continuously
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\Build-Release.ps1
-```
+We ship incremental fixes to reliability, model loading, shortcuts, and the UI.
+Current focus: broader hardware validation and smoother everyday dictation.
+Follow **[Releases](https://github.com/arunmauryaz/VoiceFlow/releases)** or report your
+PC specs and reproduction steps in **[Issues](https://github.com/arunmauryaz/VoiceFlow/issues)**.
+New builds are published on GitHub; install the latest release to update.
 
-The script runs the tests, publishes a self-contained Windows x64 folder, and
-creates an installer, portable ZIP, checksums, and install notes in `release/`.
-Temporary build folders are removed, including after failures. Use `-KeepBuildFiles`
-only when debugging packaging. Install into a separate folder, never the source checkout.
-Worker scripts and native libraries stay alongside the executable.
+| Already shipped | Latest maintenance |
+| --- | --- |
+| Local models · cloud mode · continuous phrases · independent shortcuts · flowing notch | **v1.1.4:** automatic build cleanup + safer installation folders |
 
-## Credits and licenses
+[Changelog](CHANGELOG.md) · [Setup, hardware, privacy & troubleshooting](docs/GUIDE.md) · [Build from source](docs/GUIDE.md#build-and-debug)
 
-VoiceFlow is [MIT licensed](LICENSE). [Sotto](https://github.com/smirk-dev/sotto)
-inspired the local-model workflow. Local Whisper uses
-[Whisper.net](https://github.com/sandrohanea/whisper.net) and
-[whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp).
-[Underdog Bark Clean](https://huggingface.co/ConwayResearch/Underdog-Bark-3.0-Clean)
-and its NVIDIA processor files use CC BY 4.0; see
-[the bundled attribution](VoiceFlow/LocalRuntime/NOTICE). Python uses the PSF license;
-get-pip uses MIT. The icon master and generation prompt are in
-[docs/design](docs/design/).
+<details>
+<summary>Credits & licensing</summary>
+
+VoiceFlow is [MIT licensed](LICENSE). Thanks to [Sotto](https://github.com/smirk-dev/sotto)
+for local-model workflow inspiration, [Whisper.net](https://github.com/sandrohanea/whisper.net),
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp), and
+[Conway Research's Bark Clean](https://huggingface.co/ConwayResearch/Underdog-Bark-3.0-Clean).
+Bark and NVIDIA processor attribution: [CC BY 4.0 notice](VoiceFlow/LocalRuntime/NOTICE).
+Python uses the PSF license; get-pip uses MIT. [Icon source & prompt](docs/design/).
+
+</details>
