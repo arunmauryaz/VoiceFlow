@@ -10,6 +10,8 @@ namespace VoiceFlow.Views;
 
 public partial class RecordingOverlayWindow : Window
 {
+    private bool _closed;
+    private RecordingOverlayViewModel? _vm;
     public RecordingOverlayWindow()
     {
         InitializeComponent();
@@ -18,6 +20,7 @@ public partial class RecordingOverlayWindow : Window
     public RecordingOverlayWindow(RecordingOverlayViewModel vm) : this()
     {
         DataContext = vm;
+        _vm = vm;
         vm.PropertyChanged += OnViewModelPropertyChanged;
     }
 
@@ -32,21 +35,29 @@ public partial class RecordingOverlayWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_closed) return;
         if (e.PropertyName == nameof(RecordingOverlayViewModel.IsVisible))
         {
-            Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(async () =>
             {
-                if (DataContext is RecordingOverlayViewModel vm)
+                if (!_closed && DataContext is RecordingOverlayViewModel vm)
                 {
                     if (vm.IsVisible)
                     {
                         UpdatePosition();
+                        var transitions = NotchCard.Transitions;
+                        NotchCard.Transitions = null;
+                        NotchCard.Opacity = 0;
                         Show();
+                        NotchCard.Transitions = transitions;
+                        Dispatcher.UIThread.Post(() => { if (!_closed) NotchCard.Opacity = 1; }, DispatcherPriority.Loaded);
                         Dispatcher.UIThread.Post(UpdatePosition, DispatcherPriority.Loaded);
                     }
                     else
                     {
-                        Hide();
+                        NotchCard.Opacity = 0;
+                        await System.Threading.Tasks.Task.Delay(170);
+                        if (!_closed && !vm.IsVisible) Hide();
                     }
                 }
             });
@@ -55,6 +66,13 @@ public partial class RecordingOverlayWindow : Window
         {
             Dispatcher.UIThread.Post(UpdatePosition, DispatcherPriority.Loaded);
         }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _closed = true;
+        if (_vm != null) _vm.PropertyChanged -= OnViewModelPropertyChanged;
+        base.OnClosed(e);
     }
 
     protected override void OnOpened(EventArgs e)
@@ -80,14 +98,15 @@ public partial class RecordingOverlayWindow : Window
 
     private void UpdatePosition()
     {
-        var screen = Screens.Primary ?? (Screens.All.Count > 0 ? Screens.All[0] : null);
+        if (_closed) return;
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary ?? (Screens.All.Count > 0 ? Screens.All[0] : null);
         if (screen == null) return;
 
-        double width = Bounds.Width > 0 ? Bounds.Width : 220;
-        double height = Bounds.Height > 0 ? Bounds.Height : 50;
+        double width = (Bounds.Width > 0 ? Bounds.Width : 240) * screen.Scaling;
+        double height = (Bounds.Height > 0 ? Bounds.Height : 50) * screen.Scaling;
 
         int x = (int)(screen.WorkingArea.X + (screen.WorkingArea.Width - width) / 2);
-        int y = (int)(screen.WorkingArea.Y + screen.WorkingArea.Height - height - 70);
+        int y = (int)(screen.WorkingArea.Y + screen.WorkingArea.Height - height - 45 * screen.Scaling);
 
         Position = new PixelPoint(x, y);
     }

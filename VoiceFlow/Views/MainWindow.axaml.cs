@@ -20,6 +20,10 @@ public partial class MainWindow : Window
     {
         DataContext = vm;
         _settingsService = settingsService;
+        Deactivated += (_, _) =>
+        {
+            if (vm.IsRecordingAnySlot) vm.CancelRecordingShortcutCommand.Execute(null);
+        };
     }
 
     public void ShowAndActivate()

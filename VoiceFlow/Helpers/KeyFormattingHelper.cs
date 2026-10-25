@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using System.Linq;
 using VoiceFlow.Models;
 using VoiceFlow.Native;
 
@@ -9,6 +10,7 @@ public static class KeyFormattingHelper
 {
     public static string FormatHotkey(HotkeyConfig config)
     {
+        if (config.Keys != null) return string.Join(" + ", config.EffectiveKeys.Select(FormatVirtualKey));
         var parts = new List<string>();
 
         bool isCtrlVk = config.VirtualKey is Win32Constants.VK_CONTROL or 0xA2 or 0xA3;

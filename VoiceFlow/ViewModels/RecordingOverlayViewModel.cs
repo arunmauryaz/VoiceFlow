@@ -1,254 +1,95 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using VoiceFlow.Interfaces;
 using VoiceFlow.Models;
 
 namespace VoiceFlow.ViewModels;
 
-public partial class RecordingOverlayViewModel : ObservableObject
+public partial class RecordingOverlayViewModel : ObservableObject, IDisposable
 {
-    [ObservableProperty]
-    private bool _isVisible;
-
-    [ObservableProperty]
-    private AppState _state = AppState.Ready;
-
-    [ObservableProperty]
-    private string _statusText = "Listening...";
-
-    [ObservableProperty]
-    private string _durationText = "00:00";
-
-    [ObservableProperty]
-    private float _audioLevel;
-
-    [ObservableProperty]
-    private double _levelBar1;
-
-    [ObservableProperty]
-    private double _levelBar2;
-
-    [ObservableProperty]
-    private double _levelBar3;
-
-    [ObservableProperty]
-    private double _levelBar4;
-
-    [ObservableProperty]
-    private double _levelBar5;
-
-    // --- Floating Notch / Transcription Popup Mode (Wispr Flow style) ---
-    [ObservableProperty]
-    private bool _isPopupMode;
-
-    [ObservableProperty]
-    private string _transcriptionText = string.Empty;
-
-    [ObservableProperty]
-    private string _wordCountText = string.Empty;
-
-    [ObservableProperty]
-    private bool _isCopied;
-
-    [ObservableProperty]
-    private string _copyButtonText = "Copy";
-
+    [ObservableProperty] private bool _isVisible;
+    [ObservableProperty] private AppState _state = AppState.Ready;
+    [ObservableProperty] private string _statusText = "Listening...";
+    [ObservableProperty] private string _durationText = "00:00";
+    [ObservableProperty] private float _audioLevel;
+    [ObservableProperty] private double _levelBar1;
+    [ObservableProperty] private double _levelBar2;
+    [ObservableProperty] private double _levelBar3;
+    [ObservableProperty] private double _levelBar4;
+    [ObservableProperty] private double _levelBar5;
+    [ObservableProperty] private bool _isPopupMode;
+    [ObservableProperty] private string _transcriptionText = string.Empty;
+    [ObservableProperty] private string _wordCountText = string.Empty;
+    [ObservableProperty] private bool _isCopied;
+    [ObservableProperty] private string _copyButtonText = "Copy";
     private readonly IClipboardService? _clipboardService;
-    private CancellationTokenSource? _autoHideCts;
-
-    public RecordingOverlayViewModel()
+    private System.Threading.CancellationTokenSource? _hideCancel;
+    public RecordingOverlayViewModel() { }
+    public RecordingOverlayViewModel(IClipboardService clipboardService) => _clipboardService = clipboardService;
+    private void CancelHide() { _hideCancel?.Cancel(); _hideCancel?.Dispose(); _hideCancel = null; }
+    private void HideAfter(TimeSpan delay)
     {
+        CancelHide();
+        _hideCancel = new System.Threading.CancellationTokenSource();
+        _ = HideLaterAsync(delay, _hideCancel.Token);
     }
-
-    public RecordingOverlayViewModel(IClipboardService clipboardService)
+    private async System.Threading.Tasks.Task HideLaterAsync(TimeSpan delay, System.Threading.CancellationToken token)
     {
-        _clipboardService = clipboardService;
+        try
+        {
+            await System.Threading.Tasks.Task.Delay(delay, token);
+            Dispatcher.UIThread.Post(() => { if (!token.IsCancellationRequested) Hide(); });
+        }
+        catch (OperationCanceledException) { }
     }
-
     public void ShowRecording()
     {
-        _autoHideCts?.Cancel();
-        IsPopupMode = false;
-        State = AppState.Recording;
-        StatusText = "Listening...";
-        DurationText = "00:00";
-        AudioLevel = 0f;
-        UpdateBars(0f);
-        IsVisible = true;
+        CancelHide(); IsPopupMode = false; State = AppState.Recording;
+        StatusText = "Listening..."; DurationText = "00:00"; AudioLevel = 0;
+        UpdateBars(0); IsVisible = true;
     }
-
-    public void UpdateDuration(TimeSpan duration)
-    {
-        DurationText = $"{(int)duration.TotalMinutes:D2}:{duration.Seconds:D2}";
-    }
-
+    public void UpdateDuration(TimeSpan duration) => DurationText = $"{(int)duration.TotalMinutes:D2}:{duration.Seconds:D2}";
     public void UpdateAudioLevel(float level)
     {
-        AudioLevel = level;
-        UpdateBars(level);
+        float target = Math.Clamp(level, 0, 1);
+        AudioLevel += (target - AudioLevel) * (target > AudioLevel ? 0.7f : 0.25f);
+        UpdateBars(AudioLevel);
     }
-
     private void UpdateBars(float level)
     {
-        // Visual 5-bar equalizer matching Flow HUD specifications
-        double baseHeight = 6.0;
-        double maxHeight = 22.0;
-        double span = maxHeight - baseHeight;
-
-        LevelBar1 = Math.Clamp(baseHeight + span * (level * 1.0), baseHeight, maxHeight);
-        LevelBar2 = Math.Clamp(baseHeight + span * (level * 2.0), baseHeight, maxHeight);
-        LevelBar3 = Math.Clamp(baseHeight + span * (level * 2.5), baseHeight, maxHeight);
-        LevelBar4 = Math.Clamp(baseHeight + span * (level * 1.8), baseHeight, maxHeight);
-        LevelBar5 = Math.Clamp(baseHeight + span * (level * 0.9), baseHeight, maxHeight);
+        double energy = Math.Clamp(Math.Sqrt(Math.Max(0, level)) * 2.8, 0, 1);
+        LevelBar1 = 4 + 12 * energy;
+        LevelBar2 = 5 + 17 * energy;
+        LevelBar3 = 6 + 20 * energy;
+        LevelBar4 = 5 + 15 * energy;
+        LevelBar5 = 4 + 10 * energy;
     }
-
-    public void ShowTranscribing()
-    {
-        _autoHideCts?.Cancel();
-        State = AppState.Transcribing;
-        StatusText = "Transcribing...";
-        AudioLevel = 0f;
-        UpdateBars(0f);
-    }
-
-    public void ShowCleaning()
-    {
-        _autoHideCts?.Cancel();
-        State = AppState.Cleaning;
-        StatusText = "Refining text...";
-    }
-
-    public void ShowSuccess(string message = "Done")
-    {
-        _autoHideCts?.Cancel();
-        _autoHideCts = new CancellationTokenSource();
-        var token = _autoHideCts.Token;
-
-        State = AppState.Success;
-        StatusText = message;
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(900, token);
-                if (!token.IsCancellationRequested)
-                {
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    {
-                        IsVisible = false;
-                        State = AppState.Ready;
-                    });
-                }
-            }
-            catch (OperationCanceledException) { }
-        }, token);
-    }
-
+    public void ShowTranscribing() { CancelHide(); State = AppState.Transcribing; StatusText = "Transcribing..."; UpdateBars(0); }
+    public void ShowCleaning() { CancelHide(); State = AppState.Cleaning; StatusText = "Refining text..."; }
+    public void ShowSuccess(string message = "Done") { IsPopupMode = false; State = AppState.Success; StatusText = message; IsVisible = true; HideAfter(TimeSpan.FromMilliseconds(900)); }
     public void ShowError(string error)
     {
-        _autoHideCts?.Cancel();
-        _autoHideCts = new CancellationTokenSource();
-        var token = _autoHideCts.Token;
-
-        IsPopupMode = false;
-        State = AppState.Error;
-        StatusText = error.Length > 35 ? error[..32] + "..." : error;
-        IsVisible = true;
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(3000, token);
-                if (!token.IsCancellationRequested)
-                {
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    {
-                        IsVisible = false;
-                        State = AppState.Ready;
-                    });
-                }
-            }
-            catch (OperationCanceledException) { }
-        }, token);
+        IsPopupMode = false; State = AppState.Error; StatusText = error.Length > 45 ? error[..42] + "..." : error;
+        IsVisible = true; HideAfter(TimeSpan.FromSeconds(3));
     }
-
-    public void ShowNoMicrophone()
-    {
-        ShowError("No microphone connected");
-    }
-
+    public void ShowNoMicrophone() => ShowError("No microphone connected");
     public void ShowTranscriptionPopup(string text)
     {
-        _autoHideCts?.Cancel();
-        _autoHideCts = new CancellationTokenSource();
-        var token = _autoHideCts.Token;
-
-        State = AppState.Success;
-        TranscriptionText = text;
-        int wordCount = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
-        WordCountText = $"{wordCount} {(wordCount == 1 ? "word" : "words")}";
-        IsCopied = false;
-        CopyButtonText = "Copy";
-        IsPopupMode = true;
-        IsVisible = true;
-
-        // Keep popup card visible for 15 seconds or until user interacts/dismisses
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(15000, token);
-                if (!token.IsCancellationRequested)
-                {
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    {
-                        if (IsPopupMode)
-                        {
-                            Hide();
-                        }
-                    });
-                }
-            }
-            catch (OperationCanceledException) { }
-        }, token);
+        State = AppState.Success; TranscriptionText = text;
+        int count = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+        WordCountText = $"{count} {(count == 1 ? "word" : "words")}";
+        IsCopied = false; CopyButtonText = "Copy"; IsPopupMode = true; IsVisible = true;
+        HideAfter(TimeSpan.FromSeconds(15));
     }
-
-    [CommunityToolkit.Mvvm.Input.RelayCommand]
-    public async Task CopyTranscriptionAsync()
+    [RelayCommand]
+    public async System.Threading.Tasks.Task CopyTranscriptionAsync()
     {
-        if (_clipboardService != null && !string.IsNullOrEmpty(TranscriptionText))
-        {
-            await _clipboardService.SetTextAsync(TranscriptionText);
-        }
-
-        IsCopied = true;
-        CopyButtonText = "Copied! ✓";
-
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(2000);
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                CopyButtonText = "Copy";
-            });
-        });
+        if (_clipboardService != null && TranscriptionText.Length > 0) await _clipboardService.SetTextAsync(TranscriptionText);
+        IsCopied = true; CopyButtonText = "Copied";
     }
-
-    [CommunityToolkit.Mvvm.Input.RelayCommand]
-    public void DismissPopup()
-    {
-        Hide();
-    }
-
-    public void Hide()
-    {
-        _autoHideCts?.Cancel();
-        IsVisible = false;
-        IsPopupMode = false;
-        State = AppState.Ready;
-    }
+    [RelayCommand] public void DismissPopup() => Hide();
+    public void Hide() { CancelHide(); IsVisible = false; IsPopupMode = false; State = AppState.Ready; }
+    public void Dispose() => CancelHide();
 }

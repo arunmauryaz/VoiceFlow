@@ -4,6 +4,7 @@ namespace VoiceFlow.Models;
 
 public class TranscriptionResult
 {
+    public bool ProcessedLocally { get; set; }
     public bool Success { get; set; }
     public string Text { get; set; } = string.Empty;
     public string? ErrorMessage { get; set; }

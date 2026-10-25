@@ -42,6 +42,12 @@ public enum ThemePreference
     Light
 }
 
+public enum DictationOutputMode
+{
+    InsertWhenFinished,
+    ContinuousTyping
+}
+
 [Flags]
 public enum KeyModifiers
 {

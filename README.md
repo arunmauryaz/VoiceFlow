@@ -37,8 +37,8 @@ Whenever you trigger your global shortcut, VoiceFlow captures high-fidelity audi
 - ⌨️ **Flexible Global Hotkeys**:
   - **Single Function Keys**: One-tap activation using `F1` through `F12`.
   - **Multi-Key Combinations**: Full support for 2-3 key combos like `Ctrl + Space`, `Alt + Space`, `Win + Space`, `Ctrl + Shift + Space`, `Win + Alt + V`, and more.
-  - **Interactive Shortcut Recorder**: Click *Record Key* and press any custom key sequence on your keyboard to bind it instantly.
-  - **Activation Modes**: Switch between seamless **Hold-to-talk** (push-to-talk) or **Toggle** (click to start / click to stop).
+  - **Shortcut Editor**: Click each of three key boxes to capture one key, then save a one-, two-, or three-key shortcut.
+  - **Independent Shortcuts**: Configure **Hold-to-talk** and **Toggle** separately; both stay active together.
 - 🪟 **Context-Aware Text Injection & Floating Notch HUD**:
   - **Direct Text Injection**: Injects transcribed text into the focused window using simulated input without overwriting the user's existing clipboard contents.
   - **Wispr-Style Floating Notch Card**: When dictating without a focused text field, VoiceFlow pops up an unobtrusive, elegant floating notch card showing transcription preview, word count, and a 1-click **Copy** button.
@@ -90,12 +90,19 @@ Choose the package that best fits your workflow:
 3. Paste your Gemini API key from [Google AI Studio](https://aistudio.google.com/).
 4. Click **Test Connection** to verify that your key is active and connected.
 
-### 3. Choose Your Shortcut
-1. In **Settings -> Shortcut**, pick your preferred hotkey:
-   - Click any single function key chip (`F1` – `F12`), or
-   - Click any popular combo chip (`Ctrl + Space`, `Alt + Space`, etc.), or
-   - Click **Record Key** and press your favorite combination.
-2. Choose your activation mode: **Hold to talk** or **Toggle**.
+### 3. Choose Your Shortcuts
+1. Open **Settings -> Shortcut** and select **Hold to talk** to edit its shortcut.
+2. Click a key box and press one key. Fill one, two, or three boxes; use the × button to remove a key.
+3. Click **Save & Activate Shortcut**.
+4. Select **Toggle** and configure its own shortcut the same way. Both shortcuts remain active together.
+
+For example, use **Shift + Ctrl + Win** for hold-to-talk and **F10** for toggle.
+Release any key of the hold shortcut to finish; press the toggle shortcut again to finish.
+The mode selector only chooses which shortcut you are editing. Unsaved edits remain
+in their respective editors when switching modes. Escape cancels key capture.
+Duplicate keys, overlapping Hold/Toggle shortcuts, and known reserved Windows
+combinations are rejected with an explanation. Existing installations retain their
+previous shortcut; fresh installations use Ctrl + Space for Hold and F10 for Toggle.
 
 ### 4. Dictate Anywhere!
 - Focus any text field (VS Code, Slack, Word, Discord, Browser, Terminal, etc.).
@@ -106,12 +113,95 @@ Choose the package that best fits your workflow:
 
 ## 🛠️ Building From Source
 
+### Local speech recognition
+
+Choose **Local models (offline)** under **Settings → Transcription**, then select
+a model. Missing weights and the required backend are downloaded automatically.
+Startup prepares the selected model in the background and keeps it loaded for
+dictation. Setup status and progress appear below the selector.
+
+| Model | Weight download | Language |
+| --- | ---: | --- |
+| Whisper Tiny | 78 MB | Multilingual |
+| Whisper Base | 148 MB | Multilingual |
+| Whisper Small Q5 | 190 MB | Multilingual |
+| Underdog Bark 3.0 Clean | 180 MB | English |
+
+**Device** defaults to **Default**, which chooses a compatible GPU when available
+and falls back to CPU if GPU initialization fails. **CPU** always uses the CPU.
+**GPU** requires a compatible device and reports a short error if unavailable.
+Whisper uses Vulkan on compatible AMD, Intel, and NVIDIA GPUs. Bark uses NVIDIA
+CUDA 12.6 or newer; its Windows backend does not support AMD GPUs. Device changes
+replace the background worker without restarting the app.
+
+Runtime installation is automatic. Whisper's CPU backend is bundled; its Vulkan
+backend downloads on demand. Bark uses isolated CPU and CUDA environments, with a
+private Python 3.11 download if no suitable system Python exists. Setup does not
+modify global Python packages. Bark's compressed weights expand to several GB of
+RAM, and the first load can take considerably longer than Whisper Tiny.
+
+Once downloaded, **Repair model** verifies setup and downloads a fresh model copy.
+**Delete model** stops its worker and deletes that model's weights. Deleted models
+stay removed across startup until you choose Download or select the model again.
+Other models and shared runtimes remain installed. Setup can be cancelled and retried.
+
+Models live in `%LOCALAPPDATA%\VoiceFlow\Models`; backend environments live next
+to that folder. Downloads are pinned and verified before activation. Local
+transcription never falls back to Gemini and bypasses Gemini cleanup. Temporary
+audio is removed after processing; existing local history behavior is preserved.
+
+References and licenses: [Sotto](https://github.com/smirk-dev/sotto) inspired the
+local-model workflow. This implementation uses [Whisper.net](https://github.com/sandrohanea/whisper.net)
+and [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp).
+[Bark Clean](https://huggingface.co/ConwayResearch/Underdog-Bark-3.0-Clean) and the
+NVIDIA processor files use CC BY 4.0; attribution is in `VoiceFlow/LocalRuntime/NOTICE`.
+Private Python uses the Python Software Foundation license and get-pip uses MIT.
+Whisper's native runtime requires Windows 11 or newer, AVX2/FMA/F16C, and the
+Visual C++ 2022 x64 redistributable.
+
+### Dictation behavior and background use
+
+In **Settings → Dictation → Text output**, choose **When finished** to insert one
+complete transcript, or **Continuous typing** to insert phrases as they are recognized.
+Continuous mode recognizes pauses and transcribes non-overlapping audio phrases.
+It preserves your wording and skips the separate cloud cleanup pass. Recognition
+latency depends on the model and hardware; Whisper Tiny/Base are the fastest
+choices for modest CPUs. This is phrase-by-phrase output, not speculative token streaming.
+
+Global shortcuts write into the focused text field. Continuous insertion pauses
+if you switch windows or text fields; your full transcript remains available to
+copy. Home's Start dictation button previews output inside VoiceFlow. Finishing a
+continuous session records a single History entry and does not paste everything
+again. The recording notch never takes keyboard focus and displays a smoothed
+input meter. Hold shortcuts are supported during live Unicode text insertion.
+
+Audio phrase queues are bounded, and long completed-mode recordings use temporary
+files instead of growing RAM buffers. Temporary recordings are removed after use.
+Turn **Keep model ready** off to release model workers after three minutes idle;
+turn it on to prioritize faster starts. Workers are terminated when the app exits
+or crashes. Only one desktop instance runs at a time. Logs rotate at 2 MB.
+
+The monochrome icon's master and exact built-in image-generation prompt are in
+`docs/design/voiceflow-icon.png` and `docs/design/icon-prompt.txt`. The executable,
+window, sidebar, About page, and tray use the updated icon.
+
 ### Prerequisites
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - Visual Studio 2022 (v17.8+), JetBrains Rider, or VS Code with C# Dev Kit.
 - Git
 
 ### Build Instructions
+
+For one-click local development, double-click **`Run-VoiceFlow.bat`** in the
+repository root. It restores dependencies and builds the latest source in Debug
+mode before launching; build errors stay visible and prevent an older build
+from opening. Install the .NET 8 SDK first (the runtime alone is insufficient).
+The first build requires internet access for NuGet packages.
+
+Exit VoiceFlow using its system tray **Exit** command before running the launcher
+again; closing the main window can leave the app running. Runtime logs are at
+`%APPDATA%\VoiceFlow\voiceflow.log`. You can also pass app arguments from a terminal,
+for example `Run-VoiceFlow.bat --settings`.
 
 ```powershell
 # 1. Clone the repository

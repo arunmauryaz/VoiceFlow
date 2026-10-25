@@ -7,6 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 using VoiceFlow.Interfaces;
 using VoiceFlow.Models;
 using VoiceFlow.Providers.Gemini;
+using VoiceFlow.Providers.Local;
+using VoiceFlow.Providers;
 using VoiceFlow.Services;
 using VoiceFlow.ViewModels;
 using VoiceFlow.Views;
@@ -18,6 +20,7 @@ public partial class App : Application
     private ServiceProvider? _serviceProvider;
     private ITrayService? _trayService;
     private RecordingOverlayWindow? _overlayWindow;
+    private System.Threading.RegisteredWaitHandle? _activationWait;
 
     public override void Initialize()
     {
@@ -43,6 +46,9 @@ public partial class App : Application
             var mainVm = _serviceProvider.GetRequiredService<MainWindowViewModel>();
             var mainWindow = new MainWindow(mainVm, settingsService);
             desktop.MainWindow = mainWindow;
+            if (Program.ActivationRequested != null)
+                _activationWait = System.Threading.ThreadPool.RegisterWaitForSingleObject(Program.ActivationRequested,
+                    (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(mainWindow.ShowAndActivate), null, -1, false);
 
             // Initialize hotkey and orchestrator
             var appStateManager = _serviceProvider.GetRequiredService<AppStateManager>();
@@ -88,6 +94,8 @@ public partial class App : Application
                 overlayVm.ShowTranscriptionPopup("The user dictates while on desktop. VoiceFlow detects no active text field and displays this floating card with quick copy.");
             }
 
+            desktop.Exit += (_, _) => mainVm.CancelLocalSetup();
+            Avalonia.Threading.Dispatcher.UIThread.Post(async () => await mainVm.InitializeLocalModelsAsync());
             desktop.Exit += OnDesktopExit;
         }
 
@@ -99,7 +107,12 @@ public partial class App : Application
         // Core Singletons
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<IAudioRecorder, AudioRecorder>();
-        services.AddSingleton<ITranscriptionProvider, GeminiTranscriptionProvider>();
+        services.AddSingleton<LocalModelService>();
+        services.AddSingleton<BarkRuntimeService>();
+        services.AddSingleton<WhisperRuntimeService>();
+        services.AddSingleton<GeminiTranscriptionProvider>();
+        services.AddSingleton<LocalTranscriptionProvider>();
+        services.AddSingleton<ITranscriptionProvider, TranscriptionRouter>();
         services.AddSingleton<IAITextProcessor, GeminiTextProcessor>();
         services.AddSingleton<IGlobalHotkeyService, WindowsHotkeyService>();
         services.AddSingleton<IClipboardService, WindowsClipboardService>();
@@ -115,6 +128,7 @@ public partial class App : Application
     private void OnDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
         AppLogger.LogInfo("VoiceFlow exiting cleanly.");
+        _activationWait?.Unregister(null);
 
         _trayService?.Dispose();
         _overlayWindow?.Close();

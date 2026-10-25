@@ -403,7 +403,17 @@ public class ComponentTests
         vm.IsToggleToTalk = true;
         Assert.True(vm.IsToggleToTalk);
         Assert.False(vm.IsHoldToTalk);
-        Assert.Equal(HotkeyActivationMode.Toggle, settings.Settings.HotkeyMode);
+        // Selecting an editor does not disable the other binding.
+        Assert.Equal("F10", vm.Slot1Text);
+        Assert.Equal("Ctrl + Space", vm.HoldShortcutText);
+        Assert.Equal("F10", vm.ToggleShortcutText);
+        vm.ClearSlot1Command.Execute(null);
+        vm.IsHoldToTalk = true;
+        Assert.Equal("Ctrl", vm.Slot1Text);
+        vm.IsToggleToTalk = true;
+        Assert.Equal(string.Empty, vm.Slot1Text);
+        Assert.False(vm.IsShortcutSavedAndActive);
+        Assert.Equal("F10", settings.Settings.ToggleHotkey!.ToString());
 
         vm.SelectedCleanupModeString = "Smart formatting";
         Assert.Equal(TextCleanupMode.SmartFormatting, settings.Settings.CleanupMode);
@@ -499,7 +509,7 @@ public class ComponentTests
         await vm.CopyTranscriptionCommand.ExecuteAsync(null);
 
         Assert.True(vm.IsCopied);
-        Assert.Equal("Copied! ✓", vm.CopyButtonText);
+        Assert.Equal("Copied", vm.CopyButtonText);
         Assert.Equal("Dictated thought without text box focus", mockClipboard.CurrentText);
 
         vm.DismissPopup();
@@ -549,7 +559,8 @@ public class ComponentTests
         // Reset to Default fills slots from Ctrl+Space config
         vm.ResetDefaultShortcutCommand.Execute(null);
         Assert.False(vm.IsRecordingAnySlot);
-        Assert.Equal("Ctrl + Space", vm.CurrentShortcutText);
+        Assert.Equal("Hold: Ctrl + Space · Toggle: F10", vm.CurrentShortcutText);
+        Assert.False(vm.IsShortcutSavedAndActive);
         Assert.Equal("Ctrl", vm.ShortcutModifierKeyText);
         Assert.Equal("Space", vm.ShortcutMainKeyText);
         // Slot 1 = "Ctrl", Slot 2 = "Space", Slot 3 = empty

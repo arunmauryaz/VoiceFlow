@@ -25,7 +25,7 @@ public class GeminiTextProcessor : IAITextProcessor
 
     public async Task<string> ProcessTextAsync(string rawText, TextCleanupMode mode, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(rawText) || mode == TextCleanupMode.Off)
+        if (_settingsService.Settings.ApiProvider == "Local" || string.IsNullOrWhiteSpace(rawText) || mode == TextCleanupMode.Off)
         {
             return rawText;
         }

@@ -104,31 +104,7 @@
 
                 <!-- Footer Status & Version -->
                 <StackPanel Grid.Row="5" Margin="20,0,20,20" Spacing="4">
-                    <!-- Dynamic Status Pill -->
-                    <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                        <Border Width="7" Height="7"
-                                CornerRadius="3.5"
-                                Background="{StaticResource ReadyStatusBrush}"
-                                VerticalAlignment="Center"
-                                IsVisible="{Binding !IsListening}" />
-                        <Border Width="7" Height="7"
-                                CornerRadius="3.5"
-                                Background="{StaticResource RecordingDotBrush}"
-                                VerticalAlignment="Center"
-                                IsVisible="{Binding IsListening}" />
-                        <TextBlock Text="Ready"
-                                   FontSize="12"
-                                   FontWeight="Medium"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   VerticalAlignment="Center"
-                                   IsVisible="{Binding !IsListening}" />
-                        <TextBlock Text="Listening..."
-                                   FontSize="12"
-                                   FontWeight="Medium"
-                                   Foreground="{StaticResource RecordingDotBrush}"
-                                   VerticalAlignment="Center"
-                                   IsVisible="{Binding IsListening}" />
-                    </StackPanel>
+                    <TextBlock Text="{Binding SidebarStatus}" FontSize="12" Foreground="{Binding SidebarStatusColor}" />
 
                     <TextBlock Text="VoiceFlow for Windows v1.0.0"
                                FontSize="11"

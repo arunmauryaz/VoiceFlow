@@ -16,8 +16,9 @@ public interface IAudioRecorder : IDisposable
     event EventHandler<float>? AudioLevelChanged;
     event EventHandler? RecordingStarted;
     event EventHandler? RecordingStopped;
+    event EventHandler<byte[]>? PhraseReady;
 
-    void StartRecording(int deviceIndex = -1);
+    void StartRecording(int deviceIndex = -1, bool continuous = false);
     Task<Stream> StopRecordingAsync();
     IReadOnlyList<AudioDeviceInfo> GetInputDevices();
 }

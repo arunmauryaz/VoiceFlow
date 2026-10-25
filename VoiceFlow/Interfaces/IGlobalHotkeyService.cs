@@ -20,6 +20,8 @@ public interface IGlobalHotkeyService : IDisposable
     event EventHandler<uint>? SingleKeyCaptured;
 
     bool RegisterHotkey(HotkeyConfig config, HotkeyActivationMode mode);
+    bool RegisterHotkeys(HotkeyConfig hold, HotkeyConfig toggle);
+    void ResetActivation();
     void UnregisterHotkey();
     void StartRecordingShortcut();
     void StopRecordingShortcut();

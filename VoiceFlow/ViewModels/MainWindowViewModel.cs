@@ -16,7 +16,7 @@ using VoiceFlow.Services;
 
 namespace VoiceFlow.ViewModels;
 
-public partial class MainWindowViewModel : ViewModelBase
+public partial class MainWindowViewModel : ViewModelBase, IDisposable
 {
     private readonly ISettingsService _settingsService;
     private readonly IAudioRecorder _audioRecorder;
@@ -26,7 +26,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IClipboardService _clipboardService;
     private readonly IStartupService _startupService;
     private readonly AppStateManager _appStateManager;
-    private DispatcherTimer? _testSpeechTimer;
+
 
     // --- Navigation ---
     [ObservableProperty]
@@ -71,7 +71,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string _homeHeading = "Ready to dictate";
 
     [ObservableProperty]
-    private string _homeSubtitle = "VoiceFlow is active and listening for your hotkey anywhere on Windows.";
+    private string _homeSubtitle = "Speak naturally. VoiceFlow takes care of the typing.";
 
     [ObservableProperty]
     private string _dictationInstructionTitle = "Hold Ctrl + Space to dictate";
@@ -104,13 +104,13 @@ public partial class MainWindowViewModel : ViewModelBase
     private double _homeWaveBar5 = 8.0;
 
     [ObservableProperty]
-    private string _lastTranscriptionText = "Ready to dictate anywhere. Hold your shortcut key to begin.";
+    private string _lastTranscriptionText = string.Empty;
 
     [ObservableProperty]
     private string _lastTranscriptionTime = "Ready";
 
     [ObservableProperty]
-    private bool _hasLastTranscription = true;
+    private bool _hasLastTranscription;
 
     // --- Interactive Voice Testing Playground ---
     [ObservableProperty]
@@ -201,12 +201,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<string> AvailableProviders { get; } = new()
     {
-        "Google Gemini (Recommended)",
-        "Local Whisper (Coming soon)"
+        "Google Gemini (cloud)",
+        "Local models (offline)"
     };
 
     [ObservableProperty]
-    private string _selectedProvider = "Google Gemini (Recommended)";
+    private string _selectedProvider = "Google Gemini (cloud)";
 
     // --- Microphone ---
     public ObservableCollection<AudioDeviceInfo> AudioDevices { get; } = new();
@@ -233,12 +233,31 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private HotkeyActivationMode _selectedHotkeyMode = HotkeyActivationMode.HoldToTalk;
 
+    private readonly System.Collections.Generic.Dictionary<HotkeyActivationMode, uint[]> _shortcutDrafts = new();
+    private bool _shortcutsLoaded;
+    public string HoldShortcutText => KeyFormattingHelper.FormatHotkey(_settingsService.Settings.HoldHotkey!);
+    public string ToggleShortcutText => KeyFormattingHelper.FormatHotkey(_settingsService.Settings.ToggleHotkey!);
+    public string ShortcutEditorDescription => IsHoldToTalk
+        ? "Hold these keys while speaking. Release any key to finish."
+        : "Press once to start speaking. Press again to finish.";
+    private HotkeyConfig SelectedSavedShortcut => IsHoldToTalk ? _settingsService.Settings.HoldHotkey! : _settingsService.Settings.ToggleHotkey!;
+
+    partial void OnSelectedHotkeyModeChanging(HotkeyActivationMode value)
+    {
+        if (_shortcutsLoaded) _shortcutDrafts[SelectedHotkeyMode] = new[] { _slot1Vk, _slot2Vk, _slot3Vk };
+    }
+
     partial void OnSelectedHotkeyModeChanged(HotkeyActivationMode value)
     {
         OnPropertyChanged(nameof(IsHoldToTalk));
         OnPropertyChanged(nameof(IsToggleToTalk));
-        UpdateShortcutKeyDisplay(_settingsService?.Settings?.Hotkey ?? HotkeyConfig.Default);
-        AutoPersistSettings(updateHotkey: true);
+        OnPropertyChanged(nameof(ShortcutEditorDescription));
+        if (!_shortcutsLoaded) return;
+        CancelRecordingShortcut();
+        SyncSlotsFromConfig(_shortcutDrafts.TryGetValue(value, out var draft) ? HotkeyConfig.FromKeys(draft) : SelectedSavedShortcut);
+        IsShortcutSavedAndActive = new[] { _slot1Vk, _slot2Vk, _slot3Vk }.Where(k => k != 0).OrderBy(k => k)
+            .SequenceEqual(SelectedSavedShortcut.EffectiveKeys.OrderBy(k => k));
+        ShortcutStatusFeedback = IsShortcutSavedAndActive ? "Saved and active" : "Unsaved changes - save this shortcut to apply.";
     }
 
     public bool IsHoldToTalk
@@ -333,49 +352,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _shortcutStatusColor = "#10B981";
-
-    public ObservableCollection<string> PresetFunctionKeys { get; } = new()
-    {
-        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
-    };
-
-    public ObservableCollection<string> PresetCombos { get; } = new()
-    {
-        "Ctrl + Space",
-        "Alt + Space",
-        "Win + Space",
-        "Ctrl + Shift + Space",
-        "Ctrl + Alt + Space",
-        "Alt + Shift + Space",
-        "Ctrl + F8",
-        "Ctrl + F9",
-        "Win + Alt + V"
-    };
-
-    public ObservableCollection<string> PresetShortcuts { get; } = new()
-    {
-        "Ctrl + Space",
-        "Alt + Space",
-        "Win + Space",
-        "Ctrl + Shift + Space",
-        "Ctrl + Alt + Space",
-        "Alt + Shift + Space",
-        "Ctrl + F8",
-        "Ctrl + F9",
-        "Win + Alt + V",
-        "F1",
-        "F2",
-        "F3",
-        "F4",
-        "F5",
-        "F6",
-        "F7",
-        "F8",
-        "F9",
-        "F10",
-        "F11",
-        "F12"
-    };
 
     // --- AI Cleanup ---
     [ObservableProperty]
@@ -499,8 +475,15 @@ public partial class MainWindowViewModel : ViewModelBase
         IGlobalHotkeyService hotkeyService,
         IClipboardService clipboardService,
         IStartupService startupService,
-        AppStateManager appStateManager)
+        AppStateManager appStateManager,
+        LocalModelService? localModels = null,
+        BarkRuntimeService? barkRuntime = null,
+        VoiceFlow.Providers.Local.LocalTranscriptionProvider? localProvider = null)
     {
+        _localModels = localModels ?? new LocalModelService();
+        _barkRuntime = barkRuntime ?? new BarkRuntimeService();
+        _localProvider = localProvider ?? new VoiceFlow.Providers.Local.LocalTranscriptionProvider(settingsService, _localModels, _barkRuntime);
+        _localProvider.PreparationChanged += OnLocalPreparationChanged;
         _settingsService = settingsService;
         _audioRecorder = audioRecorder;
         _transcriptionProvider = transcriptionProvider;
@@ -512,6 +495,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
         _appStateManager.StateChanged += OnAppStateChanged;
         _appStateManager.TranscriptionCompleted += OnTranscriptionCompleted;
+        _appStateManager.PartialTranscription += OnPartialTranscription;
+        _appStateManager.DurationChanged += OnDurationChanged;
+        _appStateManager.ErrorOccurred += OnDictationError;
         _audioRecorder.AudioLevelChanged += OnAudioLevelChanged;
 
         _hotkeyService.ShortcutRecorded += OnShortcutRecorded;
@@ -524,7 +510,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void LoadState()
     {
+        _isPersistingSettings = true;
         var s = _settingsService.Settings;
+        s.EnsureShortcuts();
 
         string? savedKey = _settingsService.LoadApiKey();
         HasSavedApiKey = !string.IsNullOrEmpty(savedKey);
@@ -558,12 +546,9 @@ public partial class MainWindowViewModel : ViewModelBase
         CurrentModelText = model;
 
         SelectedHotkeyMode = s.HotkeyMode;
-        CurrentShortcutText = KeyFormattingHelper.FormatHotkey(s.Hotkey);
-        if (!PresetShortcuts.Contains(CurrentShortcutText))
-        {
-            PresetShortcuts.Insert(0, CurrentShortcutText);
-        }
-        UpdateShortcutKeyDisplay(s.Hotkey);
+        _shortcutsLoaded = true;
+        UpdateShortcutKeyDisplay(SelectedSavedShortcut);
+        RefreshShortcutSummary();
 
         CleanupEnabled = s.CleanupEnabled;
         CleanupMode = s.CleanupMode;
@@ -578,7 +563,16 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedTheme = s.Theme;
         EnableHistory = s.EnableHistory;
 
+        IsContinuousTyping = s.OutputMode == DictationOutputMode.ContinuousTyping;
+        KeepModelLoaded = s.KeepModelLoaded;
         RefreshAudioDevices();
+        SelectedLocalModel = LocalModels.All.FirstOrDefault(m => m.Id == s.LocalModelId) ?? LocalModels.Get("whisper-base");
+        SelectedComputeDevice = ComputeDevices.Contains(s.LocalComputeDevice) ? s.LocalComputeDevice : "Default";
+        SelectedLocalLanguage = s.LocalLanguage == "en" ? "English" : s.LocalLanguage == "hi" ? "Hindi" : "Auto detect";
+        SelectedProvider = s.ApiProvider == "Local" ? "Local models (offline)" : "Google Gemini (cloud)";
+        CurrentModelText = IsLocalProvider ? SelectedLocalModel.Name : SelectedModel;
+        RefreshLocalStatus();
+        _isPersistingSettings = false;
     }
 
     public void RefreshAudioDevices()
@@ -635,13 +629,7 @@ public partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     private void SyncSlotsFromConfig(HotkeyConfig config)
     {
-        // Build the ordered list of keys just like FormatHotkey does
-        var slotVks = new System.Collections.Generic.List<uint>();
-        if (config.Modifiers.HasFlag(KeyModifiers.Control)) slotVks.Add(Win32Constants.VK_CONTROL);
-        if (config.Modifiers.HasFlag(KeyModifiers.Alt)) slotVks.Add(Win32Constants.VK_MENU);
-        if (config.Modifiers.HasFlag(KeyModifiers.Shift)) slotVks.Add(Win32Constants.VK_SHIFT);
-        if (config.Modifiers.HasFlag(KeyModifiers.Windows)) slotVks.Add(Win32Constants.VK_LWIN);
-        if (config.VirtualKey != 0) slotVks.Add(config.VirtualKey);
+        var slotVks = config.EffectiveKeys.ToList();
 
         _slot1Vk = slotVks.Count > 0 ? slotVks[0] : 0;
         _slot2Vk = slotVks.Count > 1 ? slotVks[1] : 0;
@@ -657,6 +645,8 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         Dispatcher.UIThread.Post(() =>
         {
+            IsRecordingTestSpeech = state == AppState.Recording;
+            IsTranscribingTestSpeech = state is AppState.Transcribing or AppState.Cleaning;
             (StatusDisplay, StatusColor) = state switch
             {
                 AppState.Ready => ("● Ready", "#10B981"),
@@ -683,20 +673,20 @@ public partial class MainWindowViewModel : ViewModelBase
                     IsListening = false;
                     IsHeroTranscribing = true;
                     HomeHeading = "Transcribing...";
-                    HomeSubtitle = "Transcribing in real-time via Gemini Transcribe...";
+                    HomeSubtitle = IsLocalProvider ? "Transcribing on this device..." : "Transcribing...";
                     break;
                 case AppState.Ready:
                 case AppState.Success:
                     IsListening = false;
                     IsHeroTranscribing = false;
                     HomeHeading = "Ready to dictate";
-                    HomeSubtitle = "VoiceFlow is active and listening for your hotkey anywhere on Windows.";
+                    HomeSubtitle = "Speak naturally. VoiceFlow takes care of the typing.";
                     break;
                 case AppState.Error:
                     IsListening = false;
                     IsHeroTranscribing = false;
                     HomeHeading = "Transcription error";
-                    HomeSubtitle = "Check microphone connection or Gemini API key in Settings.";
+                    HomeSubtitle = _appStateManager.LastErrorMessage ?? "Check your transcription settings.";
                     break;
             }
         });
@@ -706,6 +696,9 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         Dispatcher.UIThread.Post(() =>
         {
+            TestTranscriptionResult = text;
+            HasTestResult = true;
+            HasDebugError = false;
             LastTranscriptionText = text;
             LastTranscriptionTime = "Just now";
             HasLastTranscription = true;
@@ -733,7 +726,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Dispatcher.UIThread.Post(() => MicTestLevel = level);
         }
-        if (IsRecordingTestSpeech || IsListening)
+        if (IsHomeSelected && IsListening)
         {
             Dispatcher.UIThread.Post(() =>
             {
@@ -745,14 +738,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void UpdateHomeWaveBars(float level)
     {
-        double baseH = 8.0;
+        double energy = Math.Clamp(Math.Sqrt(Math.Max(0, level)) * 2.8, 0, 1);
+        double baseH = 6.0;
         double maxH = 38.0;
         double span = maxH - baseH;
-        HomeWaveBar1 = Math.Clamp(baseH + span * (level * 1.0), baseH, maxH);
-        HomeWaveBar2 = Math.Clamp(baseH + span * (level * 2.2), baseH, maxH);
-        HomeWaveBar3 = Math.Clamp(baseH + span * (level * 3.0), baseH, maxH);
-        HomeWaveBar4 = Math.Clamp(baseH + span * (level * 2.0), baseH, maxH);
-        HomeWaveBar5 = Math.Clamp(baseH + span * (level * 1.1), baseH, maxH);
+        HomeWaveBar1 = Math.Clamp(baseH + span * (energy * 1.0), baseH, maxH);
+        HomeWaveBar2 = Math.Clamp(baseH + span * (energy * 2.2), baseH, maxH);
+        HomeWaveBar3 = Math.Clamp(baseH + span * (energy * 3.0), baseH, maxH);
+        HomeWaveBar4 = Math.Clamp(baseH + span * (energy * 2.0), baseH, maxH);
+        HomeWaveBar5 = Math.Clamp(baseH + span * (energy * 1.1), baseH, maxH);
     }
 
     // --- Navigation Commands ---
@@ -761,6 +755,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (Enum.TryParse<AppSection>(section, true, out var target))
         {
+            CancelRecordingShortcut();
             CurrentSection = target;
         }
     }
@@ -769,14 +764,8 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task ToggleHomeRecordingAsync()
     {
-        if (IsRecordingTestSpeech)
-        {
-            await FinishTestSpeechAsync();
-        }
-        else if (!IsListening && !IsHeroTranscribing)
-        {
-            StartTestSpeech();
-        }
+        if (_appStateManager.CurrentState == AppState.Recording) await _appStateManager.StopRecordingAsync();
+        else _appStateManager.StartRecording(previewOnly: true);
     }
 
     [RelayCommand]
@@ -950,11 +939,11 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ToggleMicrophoneTest()
+    private async Task ToggleMicrophoneTestAsync()
     {
         if (IsTestingMic)
         {
-            _audioRecorder.StopRecordingAsync();
+            using var discarded = await _audioRecorder.StopRecordingAsync();
             IsTestingMic = false;
             MicTestLevel = 0f;
         }
@@ -962,6 +951,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             try
             {
+                if (_audioRecorder.IsRecording) return;
                 int dev = SelectedAudioDevice?.DeviceNumber ?? -1;
                 _audioRecorder.StartRecording(dev);
                 IsTestingMic = true;
@@ -977,6 +967,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void StartRecordingSlot(int slotIndex)
     {
+        if (_appStateManager.CurrentState == AppState.Recording)
+        {
+            ShortcutStatusFeedback = "Finish recording before editing shortcuts.";
+            return;
+        }
         _hotkeyService.StopCapturingSingleKey();
         ActiveRecordingSlot = slotIndex;
         ShortcutStatusFeedback = $"Press any key for Box {slotIndex + 1} (Esc to cancel)...";
@@ -1050,74 +1045,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ResetDefaultShortcut()
     {
-        _hotkeyService.StopCapturingSingleKey();
-        _hotkeyService.StopRecordingShortcut();
-        ActiveRecordingSlot = -1;
-        IsRecordingShortcut = false;
-        var def = HotkeyConfig.Default;
-        _settingsService.Settings.Hotkey = def;
-        AutoPersistSettings();
-        CurrentShortcutText = KeyFormattingHelper.FormatHotkey(def);
-        UpdateShortcutKeyDisplay(def);
-        bool success = _hotkeyService.RegisterHotkey(def, SelectedHotkeyMode);
-        IsShortcutSavedAndActive = success;
-        ShortcutStatusFeedback = success ? "✓ Reset to default (Ctrl + Space) and activated!" : "✕ Could not register default shortcut.";
-        ShortcutStatusColor = success ? "#10B981" : "#E11D48";
-        HotkeyRegistrationError = success ? string.Empty : "✕ Default shortcut is currently unavailable.";
+        CancelRecordingShortcut();
+        SyncSlotsFromConfig(IsHoldToTalk ? HotkeyConfig.Default : new HotkeyConfig(KeyModifiers.None, 0x79));
+        IsShortcutSavedAndActive = false;
+        ShortcutStatusFeedback = "Default loaded. Save to activate.";
     }
-
-    [RelayCommand]
-    private void SelectPreset(object? presetParam)
-    {
-        string? preset = presetParam?.ToString();
-        if (string.IsNullOrWhiteSpace(preset)) return;
-
-        _hotkeyService.StopCapturingSingleKey();
-        _hotkeyService.StopRecordingShortcut();
-        ActiveRecordingSlot = -1;
-
-        var config = KeyFormattingHelper.ParseHotkey(preset);
-        if (config == null) return;
-
-        bool success = _hotkeyService.RegisterHotkey(config, SelectedHotkeyMode);
-        if (success)
-        {
-            _settingsService.Settings.Hotkey = config;
-            AutoPersistSettings();
-            CurrentShortcutText = KeyFormattingHelper.FormatHotkey(config);
-            UpdateShortcutKeyDisplay(config);
-            IsShortcutSavedAndActive = true;
-            ShortcutStatusFeedback = $"✓ Preset [{preset}] activated and ready to use!";
-            ShortcutStatusColor = "#10B981";
-            HotkeyRegistrationError = string.Empty;
-        }
-        else
-        {
-            ShortcutStatusFeedback = $"✕ Windows rejected [{preset}]. Choose another preset.";
-            ShortcutStatusColor = "#E11D48";
-        }
-    }
-
-    [RelayCommand]
-    private void SetPresetShortcut(string preset) => SelectPreset(preset);
-
-    [RelayCommand]
-    private void SelectPresetF8() => SelectPreset("F8");
-
-    [RelayCommand]
-    private void SelectPresetCtrlSpace() => SelectPreset("Ctrl + Space");
-
-    [RelayCommand]
-    private void SelectPresetAltSpace() => SelectPreset("Alt + Space");
-
-    [RelayCommand]
-    private void SelectPresetF6() => SelectPreset("F6");
-
-    [RelayCommand]
-    private void SelectPresetCtrlF8() => SelectPreset("Ctrl + F8");
-
-    [RelayCommand]
-    private void SelectPresetCtrlShiftSpace() => SelectPreset("Ctrl + Shift + Space");
 
     [RelayCommand]
     private void StartRecordingShortcut() { }
@@ -1125,6 +1057,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void CancelRecordingShortcut()
     {
+        if (!IsRecordingAnySlot) return;
         _hotkeyService.StopCapturingSingleKey();
         ActiveRecordingSlot = -1;
         ShortcutStatusFeedback = "Recording cancelled.";
@@ -1140,6 +1073,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
             if (slot < 0) return;
 
+            vk = HotkeyConfig.Normalize(vk);
             string keyText = KeyFormattingHelper.FormatVirtualKey(vk);
             switch (slot)
             {
@@ -1161,88 +1095,58 @@ public partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     private void ApplySlotsAsHotkey()
     {
-        var vks = new[] { _slot1Vk, _slot2Vk, _slot3Vk }.Where(v => v != 0).ToArray();
-        if (vks.Length == 0)
+        CancelRecordingShortcut();
+        var vks = new[] { _slot1Vk, _slot2Vk, _slot3Vk }.Where(v => v != 0).Select(HotkeyConfig.Normalize).ToArray();
+        var config = HotkeyConfig.FromKeys(vks);
+        var other = IsHoldToTalk ? _settingsService.Settings.ToggleHotkey! : _settingsService.Settings.HoldHotkey!;
+        string? error = vks.Length == 0 ? "Add at least one key."
+            : vks.Distinct().Count() != vks.Length ? "Each box must contain a different key."
+            : IsReservedWindowsShortcut(config) ? "This combination is reserved by Windows. Choose another."
+            : vks.OrderBy(k => k).SequenceEqual(other.EffectiveKeys.OrderBy(k => k)) ? "Hold and Toggle need different shortcuts."
+            : (vks.All(other.EffectiveKeys.Contains) || other.EffectiveKeys.All(vks.Contains)) ? "Choose shortcuts that do not contain each other, so both can work independently."
+            : null;
+        if (error != null)
         {
-            ShortcutStatusFeedback = "All boxes are empty. Add at least one key.";
-            ShortcutStatusColor = "#F59E0B";
-            IsShortcutSavedAndActive = false;
-            return;
-        }
-
-        HotkeyConfig config = BuildHotkeyConfigFromVks(vks);
-
-        if (IsReservedWindowsShortcut(config))
-        {
-            ShortcutStatusFeedback = "✕ This combination is reserved by Windows. Choose another.";
+            ShortcutStatusFeedback = error;
             ShortcutStatusColor = "#E11D48";
             IsShortcutSavedAndActive = false;
             return;
         }
-
-        bool success = _hotkeyService.RegisterHotkey(config, SelectedHotkeyMode);
-        if (success)
+        if (_appStateManager.CurrentState == AppState.Recording)
         {
-            _settingsService.Settings.Hotkey = config;
-            AutoPersistSettings();
-            CurrentShortcutText = KeyFormattingHelper.FormatHotkey(config);
-            // Update HomeView keycaps
-            string formatted = CurrentShortcutText;
-            var parts = formatted.Split(" + ");
-            ShortcutModifierKeyText = parts.Length > 1 ? string.Join(" + ", parts.Take(parts.Length - 1)) : string.Empty;
-            ShortcutMainKeyText = parts.Last();
-            string action = SelectedHotkeyMode == HotkeyActivationMode.HoldToTalk ? "Hold" : "Press";
-            DictationInstructionTitle = $"{action} {formatted} to dictate";
-            ShortcutStatusFeedback = $"✓ Shortcut [{formatted}] is now active and ready to use!";
-            ShortcutStatusColor = "#10B981";
-            HotkeyRegistrationError = string.Empty;
-            IsShortcutSavedAndActive = true;
+            ShortcutStatusFeedback = "Finish recording before changing shortcuts.";
+            return;
         }
-        else
+        var settings = _settingsService.Settings;
+        bool success = _hotkeyService.RegisterHotkeys(IsHoldToTalk ? config : settings.HoldHotkey!, IsHoldToTalk ? settings.ToggleHotkey! : config);
+        if (!success)
         {
-            _hotkeyService.RegisterHotkey(_settingsService.Settings.Hotkey, SelectedHotkeyMode);
-            ShortcutStatusFeedback = "✕ Windows rejected this shortcut. It may be in use by another app.";
+            _hotkeyService.RegisterHotkeys(settings.HoldHotkey!, settings.ToggleHotkey!);
+            ShortcutStatusFeedback = "Could not activate keyboard shortcuts. Try again.";
             ShortcutStatusColor = "#E11D48";
             IsShortcutSavedAndActive = false;
+            return;
         }
+        if (IsHoldToTalk) settings.HoldHotkey = config; else settings.ToggleHotkey = config;
+        _shortcutDrafts[SelectedHotkeyMode] = vks;
+        AutoPersistSettings();
+        RefreshShortcutSummary();
+        IsShortcutSavedAndActive = true;
+        ShortcutStatusFeedback = "Saved. Both Hold and Toggle shortcuts are active.";
+        ShortcutStatusColor = "#10B981";
     }
 
-    private static HotkeyConfig BuildHotkeyConfigFromVks(uint[] vks)
+    private void RefreshShortcutSummary()
     {
-        static bool IsModVk(uint v) =>
-            v is Win32Constants.VK_CONTROL or 0xA2 or 0xA3
-              or Win32Constants.VK_MENU or 0xA4 or 0xA5
-              or Win32Constants.VK_SHIFT or 0xA0 or 0xA1
-              or Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
-
-        var modVks = vks.Where(IsModVk).ToArray();
-        var nonModVks = vks.Where(v => !IsModVk(v)).ToArray();
-
-        uint mainVk;
-        uint[] modifierVks;
-
-        if (nonModVks.Length > 0)
-        {
-            mainVk = nonModVks.Last();
-            modifierVks = modVks;
-        }
-        else
-        {
-            // All modifier keys — last one is "the key", the rest are modifiers
-            mainVk = modVks.Last();
-            modifierVks = modVks.Take(modVks.Length - 1).ToArray();
-        }
-
-        KeyModifiers mods = KeyModifiers.None;
-        foreach (uint v in modifierVks)
-        {
-            if (v is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) mods |= KeyModifiers.Control;
-            else if (v is Win32Constants.VK_MENU or 0xA4 or 0xA5) mods |= KeyModifiers.Alt;
-            else if (v is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) mods |= KeyModifiers.Shift;
-            else if (v is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) mods |= KeyModifiers.Windows;
-        }
-
-        return new HotkeyConfig(mods, mainVk);
+        OnPropertyChanged(nameof(HoldShortcutText));
+        OnPropertyChanged(nameof(ToggleShortcutText));
+        CurrentShortcutText = $"Hold: {HoldShortcutText} · Toggle: {ToggleShortcutText}";
+        var parts = HoldShortcutText.Split(" + ");
+        ShortcutModifierKeyText = parts.Length > 1 ? string.Join(" + ", parts.Take(parts.Length - 1)) : string.Empty;
+        ShortcutMainKeyText = parts.Last();
+        ShortcutModeCaption = "(Hold to talk)";
+        DictationInstructionTitle = $"Hold {HoldShortcutText} to dictate";
+        DictationInstructionSubtitle = $"Or press {ToggleShortcutText} to start / stop hands-free";
     }
 
     private void OnShortcutRecorded(object? sender, HotkeyConfig recorded)
@@ -1266,11 +1170,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private static bool IsReservedWindowsShortcut(HotkeyConfig config)
     {
-        if (config.Modifiers == KeyModifiers.Windows && config.VirtualKey == 0x4C) return true; // Win + L
-        if (config.Modifiers == KeyModifiers.Windows && config.VirtualKey == 0x44) return true; // Win + D
-        if (config.Modifiers == KeyModifiers.Alt && config.VirtualKey == Win32Constants.VK_TAB) return true; // Alt + Tab
-        if (config.Modifiers == KeyModifiers.Alt && config.VirtualKey == Win32Constants.VK_F4) return true; // Alt + F4
-        return false;
+        var keys = config.EffectiveKeys;
+        bool Has(params uint[] combination) => combination.All(keys.Contains);
+        return Has(0x5B, 0x4C) || Has(0x5B, 0x44) || Has(0x12, 0x09)
+            || Has(0x12, 0x73) || Has(0x11, 0x12, 0x2E);
+
     }
 
     [RelayCommand]
@@ -1291,6 +1195,8 @@ public partial class MainWindowViewModel : ViewModelBase
             _isPersistingSettings = true;
 
             var s = _settingsService.Settings;
+            s.OutputMode = IsContinuousTyping ? DictationOutputMode.ContinuousTyping : DictationOutputMode.InsertWhenFinished;
+            s.KeepModelLoaded = KeepModelLoaded;
             s.GeminiModel = SelectedModel;
             s.HotkeyMode = SelectedHotkeyMode;
             s.CleanupEnabled = CleanupEnabled;
@@ -1314,7 +1220,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
             if (updateHotkey)
             {
-                _hotkeyService?.RegisterHotkey(s.Hotkey, s.HotkeyMode);
+                _hotkeyService?.RegisterHotkeys(s.HoldHotkey!, s.ToggleHotkey!);
             }
         }
         finally
@@ -1335,143 +1241,15 @@ public partial class MainWindowViewModel : ViewModelBase
         };
     }
 
-    // --- Interactive Voice Testing Playground Commands ---
+    // Home uses the same dictation session as global shortcuts, with output previewed here.
     [RelayCommand]
     private void StartTestSpeech()
     {
-        if (IsRecordingTestSpeech || IsTranscribingTestSpeech) return;
-
-        if (!_audioRecorder.HasInputDevices)
-        {
-            TestSpeechStatus = "No microphone connected. Please plug in a microphone.";
-            return;
-        }
-
-        try
-        {
-            int dev = SelectedAudioDevice?.DeviceNumber ?? -1;
-            _audioRecorder.StartRecording(dev);
-            IsRecordingTestSpeech = true;
-            IsListening = true;
-            HasTestResult = false;
-            TestTranscriptionResult = string.Empty;
-            TestSpeechLatencyInfo = string.Empty;
-            TestSpeechDuration = "00:00";
-            HomeTimerText = "00:00";
-            TestAudioLevel = 0f;
-            HomeHeading = "Listening...";
-            HomeSubtitle = "Speak naturally. Release hotkey or click finish when done.";
-            TestSpeechStatus = "Listening... Speak clearly into your microphone, then click Finish.";
-
-            _testSpeechTimer?.Stop();
-            _testSpeechTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-            _testSpeechTimer.Tick += (s, e) =>
-            {
-                var d = _audioRecorder.RecordingDuration;
-                TestSpeechDuration = $"{(int)d.TotalMinutes:D2}:{d.Seconds:D2}";
-                HomeTimerText = TestSpeechDuration;
-            };
-            _testSpeechTimer.Start();
-        }
-        catch (Exception ex)
-        {
-            AppLogger.LogError("Failed to start test speech recording.", ex);
-            TestSpeechStatus = (ex is InvalidOperationException ioe && ioe.Message.Contains("No microphone", StringComparison.OrdinalIgnoreCase))
-                ? "No microphone connected. Please plug in a microphone."
-                : $"Microphone error: {ex.Message}";
-        }
+        _appStateManager.StartRecording(previewOnly: true);
     }
 
     [RelayCommand]
-    private async Task FinishTestSpeechAsync()
-    {
-        if (!IsRecordingTestSpeech) return;
-
-        _testSpeechTimer?.Stop();
-        IsRecordingTestSpeech = false;
-        IsListening = false;
-        IsTranscribingTestSpeech = true;
-        IsHeroTranscribing = true;
-        HomeHeading = "Transcribing...";
-        HomeSubtitle = "Transcribing in real-time via Gemini Transcribe...";
-        TestSpeechStatus = "Transcribing audio with Gemini API...";
-
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-
-        try
-        {
-            using var audioStream = await _audioRecorder.StopRecordingAsync();
-            if (audioStream.Length < 1000)
-            {
-                TestSpeechStatus = "Recording too short to transcribe. Please speak a sentence and click Finish.";
-                HomeHeading = "Ready to dictate";
-                HomeSubtitle = "Recording was too short. Speak clearly into your microphone.";
-                IsTranscribingTestSpeech = false;
-                IsHeroTranscribing = false;
-                return;
-            }
-
-            var result = await _transcriptionProvider.TranscribeAsync(audioStream, "audio/wav");
-            if (!result.Success)
-            {
-                TestSpeechStatus = $"Transcription failed: {result.ErrorMessage}";
-                HomeHeading = "Transcription error";
-                HomeSubtitle = result.ErrorMessage ?? "Unknown transcription failure";
-                BuildDetailedError("Transcription Failed", result.ErrorMessage ?? "Unknown transcription failure", null);
-                IsTranscribingTestSpeech = false;
-                IsHeroTranscribing = false;
-                return;
-            }
-
-            string text = result.Text;
-
-            if (CleanupEnabled && CleanupMode != TextCleanupMode.Off)
-            {
-                TestSpeechStatus = "Refining transcription with AI cleanup...";
-                text = await _aiTextProcessor.ProcessTextAsync(text, CleanupMode);
-            }
-
-            sw.Stop();
-            TestTranscriptionResult = text;
-            HasTestResult = true;
-            HasDebugError = false;
-            TestSpeechLatencyInfo = $"✓ Transcribed in {sw.ElapsedMilliseconds}ms ({SelectedModel})";
-            TestSpeechStatus = "Transcription complete!";
-
-            LastTranscriptionText = text;
-            LastTranscriptionTime = "Just now";
-            HasLastTranscription = true;
-            HomeHeading = "Ready to dictate";
-            HomeSubtitle = "VoiceFlow is active and listening for your hotkey anywhere on Windows.";
-
-            if (EnableHistory)
-            {
-                RecentHistory.Insert(0, new HistoryItem
-                {
-                    FinalText = text,
-                    Timestamp = DateTime.Now
-                });
-                while (RecentHistory.Count > 50)
-                {
-                    RecentHistory.RemoveAt(RecentHistory.Count - 1);
-                }
-                OnPropertyChanged(nameof(HasHistory));
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.LogError("Error in test speech transcription.", ex);
-            TestSpeechStatus = $"Error: {ex.Message}";
-            HomeHeading = "Transcription error";
-            HomeSubtitle = ex.Message;
-            BuildDetailedError("Exception during Speech Test", ex.Message, ex);
-        }
-        finally
-        {
-            IsTranscribingTestSpeech = false;
-            IsHeroTranscribing = false;
-        }
-    }
+    private Task FinishTestSpeechAsync() => _appStateManager.StopRecordingAsync();
 
     private void BuildDetailedError(string category, string message, Exception? ex)
     {
@@ -1483,7 +1261,9 @@ public partial class MainWindowViewModel : ViewModelBase
         sb.AppendLine();
         sb.AppendLine($"--- ENVIRONMENT & CONFIGURATION ---");
         sb.AppendLine($"Microphone: {SelectedAudioDevice?.Name ?? "Default"} (Index: {SelectedAudioDevice?.DeviceNumber})");
-        sb.AppendLine($"Target Model: {SelectedModel}");
+        sb.AppendLine($"Provider: {SelectedProvider}");
+        sb.AppendLine($"Target Model: {(IsLocalProvider ? SelectedLocalModel.Name : SelectedModel)}");
+        if (IsLocalProvider) sb.AppendLine($"Device: {SelectedComputeDevice}");
         sb.AppendLine($"Has API Key: {_settingsService.HasApiKey}");
         sb.AppendLine($"AI Cleanup Enabled: {CleanupEnabled} (Mode: {CleanupMode})");
         sb.AppendLine();
@@ -1569,13 +1349,12 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (IsRecordingTestSpeech)
         {
-            _testSpeechTimer?.Stop();
+            await _appStateManager.CancelRecordingAsync();
             IsRecordingTestSpeech = false;
             IsListening = false;
-            await _audioRecorder.StopRecordingAsync();
             TestSpeechStatus = "Recording cancelled.";
             HomeHeading = "Ready to dictate";
-            HomeSubtitle = "VoiceFlow is active and listening for your hotkey anywhere on Windows.";
+            HomeSubtitle = "Speak naturally. VoiceFlow takes care of the typing.";
         }
     }
 
@@ -1597,7 +1376,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "https://ai.google.dev/gemini-api/docs",
+                FileName = "https://github.com/arunmauryaz/VoiceFlow#readme",
                 UseShellExecute = true
             });
         }
@@ -1614,7 +1393,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "https://github.com",
+                FileName = "https://github.com/arunmauryaz/VoiceFlow",
                 UseShellExecute = true
             });
         }
@@ -1631,7 +1410,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "https://github.com",
+                FileName = "https://github.com/arunmauryaz/VoiceFlow",
                 UseShellExecute = true
             });
         }

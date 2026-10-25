@@ -1,0 +1,6 @@
+Mode: built-in image_gen.
+Final prompt:
+Use case: logo-brand. Create one final professional Windows desktop app icon for VoiceFlow, a fast voice dictation application. Square composition, centered single abstract V mark formed from two flowing rounded ribbon strokes, conveying voice flowing into text. A quiet, memorable geometric silhouette, superb legibility at 24 pixels. Monochrome only: near-black charcoal rounded-square tile and a single satin silver-white mark with a very restrained liquid-glass edge highlight; no color, no rainbow, no extra decorative objects, no microphone clipart, no sparkle, no lettering, no wordmark, no mockup, no scene. Crisp clean edges, generous safe margins (mark occupies central 58 percent), subtle material depth, professional restrained software identity. Fill the image with the rounded square tile; transparent pixels outside the rounded corners. Deliver a single square icon asset.
+
+Master: docs/design/voiceflow-icon.png
+Derived assets: VoiceFlow/Assets/logo.png and multi-resolution app-icon.ico.

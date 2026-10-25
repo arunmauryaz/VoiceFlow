@@ -113,27 +113,51 @@
 
             <!-- 3. TRANSCRIPTION & GEMINI API SECTION -->
             <StackPanel Spacing="16">
-                <TextBlock Text="TRANSCRIPTION &amp; GEMINI API" Classes="sectionHeader" />
+                <TextBlock Text="TRANSCRIPTION" Classes="sectionHeader" />
 
                 <!-- Provider -->
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
-                        <TextBlock Text="Transcription provider" Classes="settingTitle" />
-                        <TextBlock Text="Backend service executing speech-to-text inference." Classes="settingDesc" TextWrapping="Wrap" />
+                        <TextBlock Text="Provider" Classes="settingTitle" />
                     </StackPanel>
                     <ComboBox Grid.Column="1"
                               ItemsSource="{Binding AvailableProviders}"
-                              SelectedItem="{Binding SelectedProvider}"
+                              SelectedItem="{Binding SelectedProvider}" IsEnabled="{Binding CanChangeTranscriptionSettings}"
                               MinWidth="240" MaxWidth="360"
                               HorizontalAlignment="Right"
                               VerticalAlignment="Center" />
                 </Grid>
 
+                <Border Classes="card" Padding="20" IsVisible="{Binding IsLocalProvider}">
+                    <StackPanel Spacing="16">
+                        <Grid ColumnDefinitions="90,*">
+                            <TextBlock Text="Model" Classes="settingTitle" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableLocalModels}" SelectedItem="{Binding SelectedLocalModel}" HorizontalAlignment="Stretch" IsEnabled="{Binding CanChangeTranscriptionSettings}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="90,*">
+                            <TextBlock Text="Device" Classes="settingTitle" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding ComputeDevices}" SelectedItem="{Binding SelectedComputeDevice}" HorizontalAlignment="Stretch" IsEnabled="{Binding CanChangeTranscriptionSettings}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="90,*" IsVisible="{Binding IsWhisperModel}">
+                            <TextBlock Text="Language" Classes="settingTitle" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding LocalLanguages}" SelectedItem="{Binding SelectedLocalLanguage}" HorizontalAlignment="Stretch" />
+                        </Grid>
+                        <TextBlock Text="English only" Classes="settingDesc" IsVisible="{Binding IsBarkModel}" />
+                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding LocalDownloadProgress}" IsIndeterminate="{Binding IsLocalProgressIndeterminate}" IsVisible="{Binding IsLocalBusy}" Height="4" />
+                        <TextBlock Text="{Binding LocalModelStatus}" Classes="settingDesc" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Content="Download" Classes="primary" Command="{Binding DownloadLocalModelCommand}" IsVisible="{Binding ShowModelDownload}" IsEnabled="{Binding CanManageLocalModel}" />
+                            <Button Content="Repair model" Classes="secondary" Command="{Binding RepairLocalModelCommand}" IsVisible="{Binding IsLocalModelInstalled}" IsEnabled="{Binding CanManageLocalModel}" />
+                            <Button Content="Delete model" Classes="secondary" Command="{Binding DeleteLocalModelCommand}" IsVisible="{Binding IsLocalModelInstalled}" IsEnabled="{Binding CanManageLocalModel}" />
+                            <Button Content="Cancel" Classes="secondary" Command="{Binding CancelLocalOperationCommand}" IsVisible="{Binding IsLocalBusy}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Model -->
-                <Grid ColumnDefinitions="*,Auto">
+                <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsCloudProvider}">
                     <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
-                        <TextBlock Text="Transcription model" Classes="settingTitle" />
-                        <TextBlock Text="Ultra low-latency multilingual transcription model." Classes="settingDesc" TextWrapping="Wrap" />
+                        <TextBlock Text="Model" Classes="settingTitle" />
                     </StackPanel>
                     <ComboBox Grid.Column="1"
                               ItemsSource="{Binding AvailableModels}"
@@ -144,10 +168,9 @@
                 </Grid>
 
                 <!-- API Key -->
-                <Grid ColumnDefinitions="*,Auto">
+                <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsCloudProvider}">
                     <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
                         <TextBlock Text="Gemini API Key" Classes="settingTitle" />
-                        <TextBlock Text="Stored securely on this device via Windows DPAPI. Never sent elsewhere." Classes="settingDesc" TextWrapping="Wrap" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Spacing="6" MinWidth="260" MaxWidth="380" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <Grid ColumnDefinitions="*,Auto,Auto">
@@ -195,7 +218,7 @@
                                     ToolTip.Tip="Open Google AI Studio in your browser to get a free Gemini API key">
                                 <TextBlock Text="Get Free API Key ↗"
                                            FontSize="12"
-                                           Foreground="{StaticResource BrandGradientEnd}"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
                                            TextDecorations="Underline" />
                             </Button>
                             <Border Width="1" Height="10" Background="{StaticResource BorderSubtleBrush}" VerticalAlignment="Center"
@@ -226,118 +249,26 @@
                         <!-- Header Row -->
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Text="Voice Typing Shortcut" Classes="settingTitle" />
-                                <TextBlock Text="Click any box below, then press that key. Fill 1–3 boxes to build your shortcut." Classes="settingDesc" TextWrapping="Wrap" />
+                                <TextBlock Text="Keyboard shortcuts" Classes="settingTitle" />
+                                <TextBlock Text="Choose a mode to edit, then click a box and press one key. Use 1–3 keys per shortcut." Classes="settingDesc" TextWrapping="Wrap" />
                             </StackPanel>
                             <Button Grid.Column="1"
                                     Classes="secondary"
-                                    Content="Reset Default"
-                                    ToolTip.Tip="Reset to default (Ctrl + Space)"
+                                    Content="Reset"
+                                    ToolTip.Tip="Load the default for the selected mode"
                                     Command="{Binding ResetDefaultShortcutCommand}"
                                     VerticalAlignment="Center" />
                         </Grid>
 
-                        <!-- Quick Presets Row (1-Click Working Shortcuts) -->
-                        <Border Background="{StaticResource SubtleBrush}"
-                                CornerRadius="10"
-                                Padding="12,10"
-                                Margin="0,2,0,2">
-                            <StackPanel Spacing="8">
-                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                    <TextBlock Text="⚡ Quick Presets"
-                                               FontSize="12"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Text="— Click any preset to activate instantly:"
-                                               FontSize="12"
-                                               Foreground="{StaticResource TextMutedBrush}"
-                                               VerticalAlignment="Center" />
+                        <Border Background="{StaticResource SubtleBrush}" CornerRadius="10" Padding="16">
+                            <StackPanel Spacing="10">
+                                <StackPanel Orientation="Horizontal" Spacing="28">
+                                    <RadioButton GroupName="ShortcutEditor" Content="Hold to talk" IsChecked="{Binding IsHoldToTalk}" />
+                                    <RadioButton GroupName="ShortcutEditor" Content="Toggle" IsChecked="{Binding IsToggleToTalk}" />
                                 </StackPanel>
-
-                                <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <!-- F8 (Recommended) -->
-                                    <Button Classes="secondary"
-                                            Command="{Binding SelectPresetF8Command}"
-                                            Margin="3,2"
-                                            Padding="14,6"
-                                            CornerRadius="6"
-                                            Cursor="Hand"
-                                            ToolTip.Tip="F8 key — Single key, 100% reliable on all Windows PCs (Recommended)">
-                                        <StackPanel Orientation="Horizontal" Spacing="5">
-                                            <TextBlock Text="★" FontSize="11" Foreground="#F59E0B" />
-                                            <TextBlock Text="F8 (Recommended)" FontWeight="Bold" FontSize="12" />
-                                        </StackPanel>
-                                    </Button>
-
-                                    <!-- Ctrl + Space -->
-                                    <Button Classes="secondary"
-                                            Content="Ctrl + Space"
-                                            Command="{Binding SelectPresetCtrlSpaceCommand}"
-                                            Margin="3,2"
-                                            Padding="12,6"
-                                            CornerRadius="6"
-                                            FontSize="12"
-                                            FontWeight="Medium"
-                                            Cursor="Hand"
-                                            ToolTip.Tip="Default shortcut: Ctrl + Space" />
-
-                                    <!-- Alt + Space -->
-                                    <Button Classes="secondary"
-                                            Content="Alt + Space"
-                                            Command="{Binding SelectPresetAltSpaceCommand}"
-                                            Margin="3,2"
-                                            Padding="12,6"
-                                            CornerRadius="6"
-                                            FontSize="12"
-                                            FontWeight="Medium"
-                                            Cursor="Hand"
-                                            ToolTip.Tip="Alt + Space" />
-
-                                    <!-- F6 -->
-                                    <Button Classes="secondary"
-                                            Content="F6"
-                                            Command="{Binding SelectPresetF6Command}"
-                                            Margin="3,2"
-                                            Padding="12,6"
-                                            CornerRadius="6"
-                                            FontSize="12"
-                                            FontWeight="Medium"
-                                            Cursor="Hand"
-                                            ToolTip.Tip="F6 key" />
-
-                                    <!-- Ctrl + F8 -->
-                                    <Button Classes="secondary"
-                                            Content="Ctrl + F8"
-                                            Command="{Binding SelectPresetCtrlF8Command}"
-                                            Margin="3,2"
-                                            Padding="12,6"
-                                            CornerRadius="6"
-                                            FontSize="12"
-                                            FontWeight="Medium"
-                                            Cursor="Hand"
-                                            ToolTip.Tip="Ctrl + F8" />
-
-                                    <!-- Ctrl + Shift + Space -->
-                                    <Button Classes="secondary"
-                                            Content="Ctrl + Shift + Space"
-                                            Command="{Binding SelectPresetCtrlShiftSpaceCommand}"
-                                            Margin="3,2"
-                                            Padding="12,6"
-                                            CornerRadius="6"
-                                            FontSize="12"
-                                            FontWeight="Medium"
-                                            Cursor="Hand"
-                                            ToolTip.Tip="Ctrl + Shift + Space (Zero conflict combination)" />
-                                </WrapPanel>
+                                <TextBlock Text="{Binding ShortcutEditorDescription}" Classes="settingDesc" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
-
-                        <TextBlock Text="Or customize your own keys below:"
-                                   FontSize="12"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,2,0,-4" />
 
                         <!-- 3-Box Slot Builder Row -->
                         <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,8">
@@ -615,23 +546,19 @@
 
                         <!-- Active shortcut label & feedback -->
                         <StackPanel Spacing="3" HorizontalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                <TextBlock Text="Active:" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
-                                <Border Classes="keycap"
-                                        IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                    <TextBlock Text="{Binding ShortcutModifierKeyText}" Classes="keycap" />
-                                </Border>
-                                <TextBlock Text="+"
-                                           Foreground="{StaticResource TextMutedBrush}"
-                                           VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           IsVisible="{Binding ShortcutModifierKeyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                <Border Classes="keycap">
-                                    <TextBlock Text="{Binding ShortcutMainKeyText}" Classes="keycap" />
-                                </Border>
-                            </StackPanel>
+                            <Border Background="{StaticResource SubtleBrush}" CornerRadius="8" Padding="14,10">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="BOTH SHORTCUTS ACTIVE" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}" />
+                                    <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto">
+                                        <TextBlock Text="Hold to talk" Classes="settingDesc" />
+                                        <TextBlock Grid.Column="1" Text="{Binding HoldShortcutText}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <TextBlock Grid.Row="1" Text="Toggle" Classes="settingDesc" />
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ToggleShortcutText}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
 
-                            <TextBlock Text="{Binding ShortcutStatusFeedback}"
+                            <TextBlock Text="{Binding ShortcutStatusFeedback}" TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"
                                        FontSize="12"
                                        Foreground="{Binding ShortcutStatusColor}"
                                        HorizontalAlignment="Center"
@@ -647,23 +574,29 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Activation Mode: Hold vs Toggle -->
-                <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center" Margin="0,0,24,0">
-                        <TextBlock Text="Activation mode" Classes="settingTitle" />
-                        <TextBlock Text="Choose between press-and-hold or click to start/stop." Classes="settingDesc" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="20" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <RadioButton GroupName="ActivationModeGroup"
-                                     Content="Hold to talk"
-                                     IsChecked="{Binding IsHoldToTalk}" />
-                        <RadioButton GroupName="ActivationModeGroup"
-                                     Content="Toggle"
-                                     IsChecked="{Binding IsToggleToTalk}" />
-                    </StackPanel>
-                </Grid>
+
             </StackPanel>
 
+            <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
+
+            <StackPanel Spacing="14">
+                <TextBlock Text="DICTATION" Classes="sectionHeader" />
+                <Grid ColumnDefinitions="*,Auto" IsEnabled="{Binding CanChangeTranscriptionSettings}">
+                    <TextBlock Text="Text output" Classes="settingTitle" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="18">
+                        <RadioButton GroupName="OutputMode" Content="When finished" IsChecked="{Binding InsertWhenFinished}" />
+                        <RadioButton GroupName="OutputMode" Content="Continuous typing" IsChecked="{Binding IsContinuousTyping}" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock Text="Continuous typing inserts each phrase as you speak." Classes="settingDesc" />
+                <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsLocalProvider}">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="Keep model ready" Classes="settingTitle" />
+                        <TextBlock Text="Faster starts, more memory. Off releases it after 3 minutes idle." Classes="settingDesc" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepModelLoaded}" OnContent="" OffContent="" />
+                </Grid>
+            </StackPanel>
             <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
 
             <!-- 5. TEXT INSERTION SECTION -->
@@ -700,7 +633,7 @@
             <Rectangle Height="1" Fill="{StaticResource BorderSubtleBrush}" />
 
             <!-- 6. AI CLEANUP SECTION -->
-            <StackPanel Spacing="16">
+            <StackPanel Spacing="16" IsVisible="{Binding IsCloudProvider}">
                 <TextBlock Text="AI CLEANUP" Classes="sectionHeader" />
 
                 <!-- Clean up transcription -->

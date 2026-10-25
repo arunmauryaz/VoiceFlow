@@ -24,7 +24,7 @@ public static class AppLogger
     public static void LogWarning(string message) => Write("WARN", message);
     public static void LogError(string message, Exception? ex = null)
     {
-        string text = ex != null ? $"{message} | Exception: {ex.Message}" : message;
+        string text = ex != null ? $"{message} | Exception: {ex}" : message;
         Write("ERROR", text);
     }
 
@@ -62,6 +62,8 @@ public static class AppLogger
                     RecentLogsQueue.Dequeue();
                 }
 
+                if (File.Exists(LogFile) && new FileInfo(LogFile).Length > 2 * 1024 * 1024)
+                    File.Move(LogFile, LogFile + ".1", true);
                 File.AppendAllText(LogFile, line + Environment.NewLine);
             }
         }

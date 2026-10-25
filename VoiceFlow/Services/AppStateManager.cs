@@ -19,11 +19,15 @@ public class AppStateManager : IDisposable
     private readonly ITextInjectionService _textInjectionService;
     private readonly IClipboardService _clipboardService;
     private readonly RecordingOverlayViewModel _overlayViewModel;
-
-    private AppState _currentState = AppState.Ready;
-    private IntPtr _targetHwnd = IntPtr.Zero;
-    private DispatcherTimer? _recordingTimer;
+    private readonly DispatcherTimer _recordingTimer;
+    private CancellationTokenSource? _sessionCancel;
+    private ContinuousDictationSession? _continuous;
+    private IntPtr _targetHwnd;
+    private string? _targetControl;
+    private bool _previewOnly, _typingPaused, _continuousMode, _autoPaste, _preserveClipboard, _showOverlay;
+    private float _latestLevel;
     private bool _isDisposed;
+    private AppState _currentState = AppState.Ready;
 
     public AppState CurrentState
     {
@@ -31,239 +35,214 @@ public class AppStateManager : IDisposable
         private set
         {
             _currentState = value;
+            if (value != AppState.Recording) _hotkeyService.ResetActivation();
             StateChanged?.Invoke(this, value);
         }
     }
-
     public string? LastTranscription { get; private set; }
     public string? LastErrorMessage { get; private set; }
-
     public event EventHandler<AppState>? StateChanged;
     public event EventHandler<string>? TranscriptionCompleted;
+    public event EventHandler<string>? PartialTranscription;
+    public event EventHandler<TimeSpan>? DurationChanged;
     public event EventHandler<string>? ErrorOccurred;
 
-    public AppStateManager(
-        ISettingsService settingsService,
-        IAudioRecorder audioRecorder,
-        ITranscriptionProvider transcriptionProvider,
-        IAITextProcessor aiTextProcessor,
-        IGlobalHotkeyService hotkeyService,
-        ITextInjectionService textInjectionService,
-        IClipboardService clipboardService,
-        RecordingOverlayViewModel overlayViewModel)
+    public AppStateManager(ISettingsService settingsService, IAudioRecorder audioRecorder,
+        ITranscriptionProvider transcriptionProvider, IAITextProcessor aiTextProcessor,
+        IGlobalHotkeyService hotkeyService, ITextInjectionService textInjectionService,
+        IClipboardService clipboardService, RecordingOverlayViewModel overlayViewModel)
     {
-        _settingsService = settingsService;
-        _audioRecorder = audioRecorder;
-        _transcriptionProvider = transcriptionProvider;
-        _aiTextProcessor = aiTextProcessor;
-        _hotkeyService = hotkeyService;
-        _textInjectionService = textInjectionService;
-        _clipboardService = clipboardService;
-        _overlayViewModel = overlayViewModel;
-
+        (_settingsService, _audioRecorder, _transcriptionProvider, _aiTextProcessor, _hotkeyService,
+            _textInjectionService, _clipboardService, _overlayViewModel) =
+            (settingsService, audioRecorder, transcriptionProvider, aiTextProcessor, hotkeyService,
+            textInjectionService, clipboardService, overlayViewModel);
         _hotkeyService.HotkeyPressed += OnHotkeyPressed;
         _hotkeyService.HotkeyReleased += OnHotkeyReleased;
         _audioRecorder.AudioLevelChanged += OnAudioLevelChanged;
-
-        _recordingTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(100)
-        };
+        _audioRecorder.PhraseReady += OnPhraseReady;
+        _recordingTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         _recordingTimer.Tick += OnRecordingTimerTick;
     }
 
     public void Initialize()
     {
         var settings = _settingsService.Settings;
-        _hotkeyService.RegisterHotkey(settings.Hotkey, settings.HotkeyMode);
+        settings.EnsureShortcuts();
+        _hotkeyService.RegisterHotkeys(settings.HoldHotkey!, settings.ToggleHotkey!);
+    }
+    private void OnHotkeyPressed(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => StartRecording());
+    private void OnHotkeyReleased(object? sender, EventArgs e) => Dispatcher.UIThread.Post(async () => await StopRecordingAsync());
+
+    public bool StartRecording(bool previewOnly = false)
+    {
+        if (_isDisposed || CurrentState != AppState.Ready || _audioRecorder.IsRecording)
+        { if (CurrentState != AppState.Recording) _hotkeyService.ResetActivation(); return false; }
+        if (_transcriptionProvider.IsPreparing)
+        {
+            _hotkeyService.ResetActivation();
+            _overlayViewModel.ShowError("Model is preparing...");
+            return false;
+        }
+        if (!_audioRecorder.HasInputDevices) { HandleError("No microphone connected"); return false; }
+        try
+        {
+            _sessionCancel?.Dispose();
+            _sessionCancel = new CancellationTokenSource();
+            var settings = _settingsService.Settings;
+            _previewOnly = previewOnly;
+            _continuousMode = settings.OutputMode == DictationOutputMode.ContinuousTyping;
+            _autoPaste = settings.AutoPaste;
+            _preserveClipboard = settings.PreserveClipboard;
+            _showOverlay = settings.ShowOverlay;
+            _typingPaused = false;
+            _latestLevel = 0;
+            _targetHwnd = _textInjectionService.GetForegroundWindowHandle();
+            _targetControl = _textInjectionService.GetFocusedControlIdentity();
+            _continuous?.Dispose();
+            _continuous = _continuousMode
+                ? new ContinuousDictationSession(_transcriptionProvider, HandlePhraseAsync, _sessionCancel.Token) : null;
+            if (_continuous != null) _continuous.Faulted += OnContinuousFaulted;
+            _audioRecorder.StartRecording(settings.SelectedAudioDeviceIndex, _continuousMode);
+            CurrentState = AppState.Recording;
+            if (_showOverlay) _overlayViewModel.ShowRecording();
+            _recordingTimer.Start();
+            return true;
+        }
+        catch (Exception ex) { AppLogger.LogError("Could not start recording", ex); HandleError("Microphone unavailable. Check your input device."); return false; }
     }
 
-    private void OnHotkeyPressed(object? sender, EventArgs e)
+    private void OnContinuousFaulted(object? sender, EventArgs e)
+        => Dispatcher.UIThread.Post(async () => { if (!_isDisposed) await StopRecordingAsync(); });
+    private void OnPhraseReady(object? sender, byte[] wav)
     {
-        Dispatcher.UIThread.Post(() =>
+        if (_continuous != null && !_continuous.TryAdd(wav))
+            Dispatcher.UIThread.Post(async () => { if (!_isDisposed) await StopRecordingAsync(); });
+    }
+
+    private async Task HandlePhraseAsync(string addition, string transcript)
+    {
+        await Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            if (CurrentState != AppState.Ready) return;
-
-            if (!_audioRecorder.HasInputDevices)
+            if (_isDisposed || _sessionCancel?.IsCancellationRequested != false) return;
+            PartialTranscription?.Invoke(this, transcript);
+            if (_previewOnly || !_autoPaste || _typingPaused) return;
+            bool focused = _textInjectionService.GetForegroundWindowHandle() == _targetHwnd
+                && _targetControl != null && _textInjectionService.GetFocusedControlIdentity() == _targetControl
+                && _textInjectionService.HasFocusedEditableControl(_targetHwnd);
+            if (!focused || !await _textInjectionService.InjectPartialTextAsync(addition, _targetHwnd, _preserveClipboard))
             {
-                AppLogger.LogWarning("Hotkey pressed but no microphone is connected.");
-                HandleError("No microphone connected");
-                return;
-            }
-
-            try
-            {
-                _targetHwnd = _textInjectionService.GetForegroundWindowHandle();
-                int deviceIndex = _settingsService.Settings.SelectedAudioDeviceIndex;
-
-                _audioRecorder.StartRecording(deviceIndex);
-                CurrentState = AppState.Recording;
-
-                if (_settingsService.Settings.ShowOverlay)
-                {
-                    _overlayViewModel.ShowRecording();
-                }
-
-                _recordingTimer?.Start();
-            }
-            catch (Exception ex)
-            {
-                AppLogger.LogError("Failed to begin voice recording on hotkey press.", ex);
-                string err = (ex is InvalidOperationException ioe && ioe.Message.Contains("No microphone", StringComparison.OrdinalIgnoreCase))
-                    || ex.Message.Contains("waveInOpen", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("BadDeviceId", StringComparison.OrdinalIgnoreCase)
-                    || ex.Message.Contains("NoDriver", StringComparison.OrdinalIgnoreCase)
-                    ? "No microphone connected"
-                    : $"Microphone error: {ex.Message}";
-                HandleError(err);
+                _typingPaused = true;
+                _overlayViewModel.StatusText = "Typing paused";
             }
         });
     }
 
-    private void OnHotkeyReleased(object? sender, EventArgs e)
+    public async Task StopRecordingAsync()
     {
-        Dispatcher.UIThread.Post(async () =>
+        if (_isDisposed || CurrentState != AppState.Recording) return;
+        _recordingTimer.Stop();
+        CurrentState = AppState.Transcribing;
+        if (_showOverlay) _overlayViewModel.ShowTranscribing();
+        try
         {
-            if (CurrentState != AppState.Recording) return;
-
-            _recordingTimer?.Stop();
-
-            if (_settingsService.Settings.ShowOverlay)
+            using var audio = await _audioRecorder.StopRecordingAsync();
+            string text;
+            if (_continuous != null) text = await _continuous.CompleteAsync();
+            else
             {
-                _overlayViewModel.ShowTranscribing();
-            }
-
-            CurrentState = AppState.Transcribing;
-
-            try
-            {
-                using var audioStream = await _audioRecorder.StopRecordingAsync();
-
-                if (audioStream.Length < 1000)
-                {
-                    _overlayViewModel.Hide();
-                    CurrentState = AppState.Ready;
-                    return;
-                }
-
-                var result = await _transcriptionProvider.TranscribeAsync(audioStream, "audio/wav");
-
-                if (!result.Success)
-                {
-                    HandleError(result.ErrorMessage ?? "Transcription failed.");
-                    return;
-                }
-
-                string text = result.Text;
-
-                if (_settingsService.Settings.CleanupEnabled &&
-                    _settingsService.Settings.CleanupMode != TextCleanupMode.Off)
+                if (audio.Length < 1000) { FinishReady(); return; }
+                var result = await _transcriptionProvider.TranscribeAsync(audio, "audio/wav", _sessionCancel!.Token);
+                if (!result.Success) { HandleError(result.ErrorMessage ?? "Transcription failed."); return; }
+                text = result.Text;
+                if (!result.ProcessedLocally && _settingsService.Settings.CleanupEnabled && _settingsService.Settings.CleanupMode != TextCleanupMode.Off)
                 {
                     CurrentState = AppState.Cleaning;
-                    if (_settingsService.Settings.ShowOverlay)
-                    {
-                        _overlayViewModel.ShowCleaning();
-                    }
-
-                    text = await _aiTextProcessor.ProcessTextAsync(text, _settingsService.Settings.CleanupMode);
-                }
-
-                LastTranscription = text;
-                TranscriptionCompleted?.Invoke(this, text);
-
-                bool hasEditableFocus = _textInjectionService.HasFocusedEditableControl(_targetHwnd);
-                AppLogger.LogInfo($"Text target focus evaluation: HasEditableFocus={hasEditableFocus}, AutoPaste={_settingsService.Settings.AutoPaste}");
-
-                if (hasEditableFocus && _settingsService.Settings.AutoPaste)
-                {
-                    CurrentState = AppState.Pasting;
-                    await _textInjectionService.InjectTextAsync(
-                        text,
-                        _targetHwnd,
-                        _settingsService.Settings.PreserveClipboard);
-
-                    CurrentState = AppState.Success;
-                    if (_settingsService.Settings.ShowOverlay)
-                    {
-                        _overlayViewModel.ShowSuccess("Inserted");
-                    }
-
-                    await Task.Delay(800);
-                    CurrentState = AppState.Ready;
-                }
-                else
-                {
-                    // No editable text box focused: copy text and show floating notch card (Wispr Flow style)
-                    await _clipboardService.SetTextAsync(text);
-                    CurrentState = AppState.Success;
-
-                    if (_settingsService.Settings.ShowOverlay)
-                    {
-                        _overlayViewModel.ShowTranscriptionPopup(text);
-                    }
-
-                    CurrentState = AppState.Ready;
+                    if (_showOverlay) _overlayViewModel.ShowCleaning();
+                    text = await _aiTextProcessor.ProcessTextAsync(text, _settingsService.Settings.CleanupMode, _sessionCancel.Token);
                 }
             }
-            catch (Exception ex)
+            if (_isDisposed || _sessionCancel?.IsCancellationRequested != false) return;
+            if (string.IsNullOrWhiteSpace(text)) { FinishReady(); return; }
+            LastTranscription = text;
+            TranscriptionCompleted?.Invoke(this, text);
+            if (_previewOnly) { if (_showOverlay) _overlayViewModel.ShowSuccess("Done"); }
+            else if (_continuousMode && _autoPaste && !_typingPaused)
+            { if (_showOverlay) _overlayViewModel.ShowSuccess("Inserted"); }
+            else if (!_continuousMode && _autoPaste && _textInjectionService.HasFocusedEditableControl(_targetHwnd))
             {
-                AppLogger.LogError("Error in recording/transcription pipeline.", ex);
-                HandleError($"Error: {ex.Message}");
+                CurrentState = AppState.Pasting;
+                if (!await _textInjectionService.InjectTextAsync(text, _targetHwnd, _preserveClipboard))
+                    await ShowCopyFallbackAsync(text);
+                else if (_showOverlay) _overlayViewModel.ShowSuccess("Inserted");
             }
-        });
-    }
-
-    private void OnAudioLevelChanged(object? sender, float level)
-    {
-        if (CurrentState == AppState.Recording && _settingsService.Settings.ShowOverlay)
-        {
-            Dispatcher.UIThread.Post(() => _overlayViewModel.UpdateAudioLevel(level));
+            else await ShowCopyFallbackAsync(text);
+            CurrentState = AppState.Ready;
         }
+        catch (OperationCanceledException) { FinishReady(); }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Recording/transcription failed", ex);
+            if (!string.IsNullOrEmpty(_continuous?.Transcript))
+            {
+                LastTranscription = _continuous.Transcript;
+                TranscriptionCompleted?.Invoke(this, LastTranscription);
+            }
+            HandleError(ex.Message);
+        }
+        finally { _continuous?.Dispose(); _continuous = null; }
     }
 
+    private async Task ShowCopyFallbackAsync(string text)
+    {
+        await _clipboardService.SetTextAsync(text);
+        if (_showOverlay) _overlayViewModel.ShowTranscriptionPopup(text);
+    }
+    public async Task CancelRecordingAsync()
+    {
+        if (CurrentState != AppState.Recording) return;
+        _recordingTimer.Stop();
+        _sessionCancel?.Cancel();
+        CurrentState = AppState.Transcribing;
+        using var discarded = await _audioRecorder.StopRecordingAsync();
+        _continuous?.Dispose();
+        _continuous = null;
+        FinishReady();
+    }
+    private void FinishReady() { if (_isDisposed) return; _overlayViewModel.Hide(); CurrentState = AppState.Ready; }
+    private void OnAudioLevelChanged(object? sender, float level) => Volatile.Write(ref _latestLevel, level);
     private void OnRecordingTimerTick(object? sender, EventArgs e)
     {
-        if (CurrentState == AppState.Recording && _settingsService.Settings.ShowOverlay)
+        if (CurrentState != AppState.Recording || _isDisposed) return;
+        DurationChanged?.Invoke(this, _audioRecorder.RecordingDuration);
+        if (_showOverlay)
         {
+            _overlayViewModel.UpdateAudioLevel(Volatile.Read(ref _latestLevel));
             _overlayViewModel.UpdateDuration(_audioRecorder.RecordingDuration);
         }
     }
-
     private void HandleError(string message)
     {
+        if (_isDisposed) return;
+        _recordingTimer.Stop();
+        _sessionCancel?.Cancel();
         LastErrorMessage = message;
         CurrentState = AppState.Error;
         ErrorOccurred?.Invoke(this, message);
-
-        _overlayViewModel.ShowError(message);
-
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(3000);
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (CurrentState == AppState.Error)
-                {
-                    CurrentState = AppState.Ready;
-                }
-            });
-        });
+        if (_settingsService.Settings.ShowOverlay) _overlayViewModel.ShowError(message);
+        DispatcherTimer.RunOnce(() => { if (!_isDisposed && CurrentState == AppState.Error) CurrentState = AppState.Ready; }, TimeSpan.FromSeconds(3));
     }
-
     public void Dispose()
     {
         if (_isDisposed) return;
         _isDisposed = true;
-
+        _sessionCancel?.Cancel();
+        _continuous?.Dispose();
         _hotkeyService.HotkeyPressed -= OnHotkeyPressed;
         _hotkeyService.HotkeyReleased -= OnHotkeyReleased;
         _audioRecorder.AudioLevelChanged -= OnAudioLevelChanged;
-
-        if (_recordingTimer != null)
-        {
-            _recordingTimer.Stop();
-            _recordingTimer.Tick -= OnRecordingTimerTick;
-            _recordingTimer = null;
-        }
+        _audioRecorder.PhraseReady -= OnPhraseReady;
+        _recordingTimer.Stop();
+        _recordingTimer.Tick -= OnRecordingTimerTick;
+        _sessionCancel?.Dispose();
     }
 }

@@ -9,59 +9,81 @@
     </Application.DataTemplates>
 
     <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <Color x:Key="CanvasBgColor">#F9F9F8</Color>
+                    <Color x:Key="SurfaceColor">#FFFFFF</Color>
+                    <Color x:Key="SubtleColor">#F4F4F2</Color>
+                    <Color x:Key="BorderSubtleColor">#E5E5E2</Color>
+                    <Color x:Key="BorderStrongColor">#D0D0CB</Color>
+                    <Color x:Key="TextPrimaryColor">#18181B</Color>
+                    <Color x:Key="TextSecondaryColor">#52525B</Color>
+                    <Color x:Key="TextMutedColor">#A1A1AA</Color>
+                    <Color x:Key="RecordingDotColor">#E11D48</Color>
+                    <Color x:Key="RecordingBgColor">#FFF1F2</Color>
+                    <Color x:Key="RecordingBorderColor">#FECDD3</Color>
+                    <Color x:Key="ReadyStatusColor">#10B981</Color>
+                    <Color x:Key="ReadyBgColor">#ECFDF5</Color>
+                    <Color x:Key="ReadyBorderColor">#A7F3D0</Color>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <Color x:Key="CanvasBgColor">#111214</Color>
+                    <Color x:Key="SurfaceColor">#1A1C1F</Color>
+                    <Color x:Key="SubtleColor">#23262B</Color>
+                    <Color x:Key="BorderSubtleColor">#30343B</Color>
+                    <Color x:Key="BorderStrongColor">#464C56</Color>
+                    <Color x:Key="TextPrimaryColor">#F2F3F5</Color>
+                    <Color x:Key="TextSecondaryColor">#B7BEC9</Color>
+                    <Color x:Key="TextMutedColor">#8D96A5</Color>
+                    <Color x:Key="RecordingDotColor">#FB7185</Color>
+                    <Color x:Key="RecordingBgColor">#2E1A22</Color>
+                    <Color x:Key="RecordingBorderColor">#663044</Color>
+                    <Color x:Key="ReadyStatusColor">#6EE7B7</Color>
+                    <Color x:Key="ReadyBgColor">#162C25</Color>
+                    <Color x:Key="ReadyBorderColor">#285744</Color>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
         <!-- Flow Design System Color Tokens (01 - Design System) -->
-        <Color x:Key="CanvasBgColor">#F9F9F8</Color>
-        <Color x:Key="SurfaceColor">#FFFFFF</Color>
-        <Color x:Key="SubtleColor">#F4F4F2</Color>
-        <Color x:Key="BorderSubtleColor">#E5E5E2</Color>
-        <Color x:Key="BorderStrongColor">#D0D0CB</Color>
-        <Color x:Key="TextPrimaryColor">#18181B</Color>
-        <Color x:Key="TextSecondaryColor">#52525B</Color>
-        <Color x:Key="TextMutedColor">#A1A1AA</Color>
-        <Color x:Key="RecordingDotColor">#E11D48</Color>
-        <Color x:Key="RecordingBgColor">#FFF1F2</Color>
-        <Color x:Key="RecordingBorderColor">#FECDD3</Color>
-        <Color x:Key="ReadyStatusColor">#10B981</Color>
-        <Color x:Key="ReadyBgColor">#ECFDF5</Color>
-        <Color x:Key="ReadyBorderColor">#A7F3D0</Color>
 
         <!-- SolidColorBrush Resources -->
-        <SolidColorBrush x:Key="CanvasBgBrush" Color="{StaticResource CanvasBgColor}" />
-        <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
-        <SolidColorBrush x:Key="SubtleBrush" Color="{StaticResource SubtleColor}" />
-        <SolidColorBrush x:Key="BorderSubtleBrush" Color="{StaticResource BorderSubtleColor}" />
-        <SolidColorBrush x:Key="BorderStrongBrush" Color="{StaticResource BorderStrongColor}" />
-        <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
-        <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
-        <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
-        <SolidColorBrush x:Key="RecordingDotBrush" Color="{StaticResource RecordingDotColor}" />
-        <SolidColorBrush x:Key="RecordingBgBrush" Color="{StaticResource RecordingBgColor}" />
-        <SolidColorBrush x:Key="RecordingBorderBrush" Color="{StaticResource RecordingBorderColor}" />
-        <SolidColorBrush x:Key="ReadyStatusBrush" Color="{StaticResource ReadyStatusColor}" />
-        <SolidColorBrush x:Key="ReadyBgBrush" Color="{StaticResource ReadyBgColor}" />
-        <SolidColorBrush x:Key="ReadyBorderBrush" Color="{StaticResource ReadyBorderColor}" />
+        <SolidColorBrush x:Key="CanvasBgBrush" Color="{DynamicResource CanvasBgColor}" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="{DynamicResource SurfaceColor}" />
+        <SolidColorBrush x:Key="SubtleBrush" Color="{DynamicResource SubtleColor}" />
+        <SolidColorBrush x:Key="BorderSubtleBrush" Color="{DynamicResource BorderSubtleColor}" />
+        <SolidColorBrush x:Key="BorderStrongBrush" Color="{DynamicResource BorderStrongColor}" />
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="{DynamicResource TextPrimaryColor}" />
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="{DynamicResource TextSecondaryColor}" />
+        <SolidColorBrush x:Key="TextMutedBrush" Color="{DynamicResource TextMutedColor}" />
+        <SolidColorBrush x:Key="RecordingDotBrush" Color="{DynamicResource RecordingDotColor}" />
+        <SolidColorBrush x:Key="RecordingBgBrush" Color="{DynamicResource RecordingBgColor}" />
+        <SolidColorBrush x:Key="RecordingBorderBrush" Color="{DynamicResource RecordingBorderColor}" />
+        <SolidColorBrush x:Key="ReadyStatusBrush" Color="{DynamicResource ReadyStatusColor}" />
+        <SolidColorBrush x:Key="ReadyBgBrush" Color="{DynamicResource ReadyBgColor}" />
+        <SolidColorBrush x:Key="ReadyBorderBrush" Color="{DynamicResource ReadyBorderColor}" />
 
         <!-- Fluent Control Overrides for Flow Monochrome Minimalist Theme -->
-        <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{StaticResource TextPrimaryColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{DynamicResource TextPrimaryColor}" />
         <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#27272A" />
         <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#09090B" />
-        <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{StaticResource TextPrimaryColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{DynamicResource TextPrimaryColor}" />
         <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#27272A" />
-        <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="{StaticResource BorderStrongColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{DynamicResource CanvasBgColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="{DynamicResource BorderStrongColor}" />
         <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{StaticResource BorderStrongColor}" />
-        <SolidColorBrush x:Key="ComboBoxBackground" Color="{StaticResource SurfaceColor}" />
-        <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="{StaticResource BorderSubtleColor}" />
-        <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource SurfaceColor}" />
-        <SolidColorBrush x:Key="TextControlBorderBrush" Color="{StaticResource BorderSubtleColor}" />
-        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFill" Color="{StaticResource TextPrimaryColor}" />
-        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStroke" Color="{StaticResource TextPrimaryColor}" />
-        <SolidColorBrush x:Key="RadioButtonCheckGlyphFill" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="RadioButtonForeground" Color="{StaticResource TextPrimaryColor}" />
-        <SolidColorBrush x:Key="RadioButtonForegroundPointerOver" Color="{StaticResource TextPrimaryColor}" />
-        <SolidColorBrush x:Key="RadioButtonForegroundPressed" Color="{StaticResource TextPrimaryColor}" />
-        <SolidColorBrush x:Key="RadioButtonForegroundDisabled" Color="{StaticResource TextMutedColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{DynamicResource BorderStrongColor}" />
+        <SolidColorBrush x:Key="ComboBoxBackground" Color="{DynamicResource SurfaceColor}" />
+        <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="{DynamicResource BorderSubtleColor}" />
+        <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource SurfaceColor}" />
+        <SolidColorBrush x:Key="TextControlBorderBrush" Color="{DynamicResource BorderSubtleColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFill" Color="{DynamicResource TextPrimaryColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStroke" Color="{DynamicResource TextPrimaryColor}" />
+        <SolidColorBrush x:Key="RadioButtonCheckGlyphFill" Color="{DynamicResource CanvasBgColor}" />
+        <SolidColorBrush x:Key="RadioButtonForeground" Color="{DynamicResource TextPrimaryColor}" />
+        <SolidColorBrush x:Key="RadioButtonForegroundPointerOver" Color="{DynamicResource TextPrimaryColor}" />
+        <SolidColorBrush x:Key="RadioButtonForegroundPressed" Color="{DynamicResource TextPrimaryColor}" />
+        <SolidColorBrush x:Key="RadioButtonForegroundDisabled" Color="{DynamicResource TextMutedColor}" />
 
         <!-- Vector Icon Geometries (Filled primitives) -->
         <StreamGeometry x:Key="IconWaveform">M 1,6 C 1,5.4 1.4,5 2,5 C 2.6,5 3,5.4 3,6 V 10 C 3,10.6 2.6,11 2,11 C 1.4,11 1,10.6 1,10 Z M 4.5,3 C 4.5,2.4 4.9,2 5.5,2 C 6.1,2 6.5,2.4 6.5,3 V 13 C 6.5,13.6 6.1,14 5.5,14 C 4.9,14 4.5,13.6 4.5,13 Z M 8,1 C 8,0.4 8.4,0 9,0 C 9.6,0 10,0.4 10,1 V 15 C 10,15.6 9.6,16 9,16 C 8.4,16 8,15.6 8,15 Z M 11.5,3 C 11.5,2.4 11.9,2 12.5,2 C 13.1,2 13.5,2.4 13.5,3 V 13 C 13.5,13.6 13.1,14 12.5,14 C 11.9,14 11.5,13.6 11.5,13 Z M 15,6 C 15,5.4 15.4,5 16,5 C 16.6,5 17,5.4 17,6 V 10 C 17,10.6 16.6,11 16,11 C 15.4,11 15,10.6 15,10 Z</StreamGeometry>
@@ -78,10 +100,16 @@
         <StreamGeometry x:Key="IconChevronDown">M 4,6 L 8,10 L 12,6</StreamGeometry>
         <StreamGeometry x:Key="IconClose">M 4,4 L 12,12 M 12,4 L 4,12</StreamGeometry>
         <StreamGeometry x:Key="IconMoreVertical">M 8,3.5 C 7.4,3.5 7,3.9 7,4.5 C 7,5.1 7.4,5.5 8,5.5 C 8.6,5.5 9,5.1 9,4.5 C 9,3.9 8.6,3.5 8,3.5 Z M 8,7 C 7.4,7 7,7.4 7,8 C 7,8.6 7.4,9 8,9 C 8.6,9 9,8.6 9,8 C 9,7.4 8.6,7 8,7 Z M 8,10.5 C 7.4,10.5 7,10.9 7,11.5 C 7,12.1 7.4,12.5 8,12.5 C 8.6,12.5 9,12.1 9,11.5 C 9,10.9 8.6,10.5 8,10.5 Z</StreamGeometry>
+        </ResourceDictionary>
     </Application.Resources>
 
     <Application.Styles>
         <FluentTheme />
+        <Style Selector="Border.wave">
+            <Setter Property="Transitions">
+                <Transitions><DoubleTransition Property="Height" Duration="0:0:0.10" Easing="CubicEaseOut" /></Transitions>
+            </Setter>
+        </Style>
 
         <!-- Global Base Overrides for Flow Look & Feel -->
         <Style Selector="Window">
@@ -92,7 +120,7 @@
         <!-- Primary Dark Button (#18181B) -->
         <Style Selector="Button.primary">
             <Setter Property="Background" Value="{StaticResource TextPrimaryBrush}" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="{StaticResource SurfaceBrush}" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="16,9" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -101,15 +129,23 @@
             <Setter Property="BorderThickness" Value="0" />
         </Style>
         <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#27272A" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Background" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource SurfaceBrush}" />
         </Style>
         <Style Selector="Button.primary:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="#09090B" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Background" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource SurfaceBrush}" />
         </Style>
 
         <!-- Secondary White Surface Button -->
+        <Style Selector="Button.primary:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SubtleBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
+        <Style Selector="Button.secondary:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SubtleBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
         <Style Selector="Button.secondary">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
@@ -239,6 +275,9 @@
         </Style>
 
         <!-- TextBox Styling -->
+        <Style Selector="ComboBox:disabled /template/ ContentPresenter">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
         <Style Selector="TextBox">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />

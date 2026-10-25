@@ -8,25 +8,27 @@
         SystemDecorations="None"
         CanResize="False"
         ShowInTaskbar="False"
+        ShowActivated="False"
         Topmost="True"
         Background="Transparent"
         TransparencyLevelHint="Transparent"
         SizeToContent="WidthAndHeight"
         Focusable="False">
 
-    <Border Margin="12"
-            CornerRadius="18"
+    <Border x:Name="NotchCard" Margin="12"
+            CornerRadius="22"
             Background="#18181B"
             BorderBrush="#27272A"
             BorderThickness="1"
             BoxShadow="0 8 28 0 #50000000">
 
+        <Border.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></Border.Transitions>
         <Panel VerticalAlignment="Center">
 
             <!-- ============================================== -->
             <!-- NORMAL HUD MODE (Pill during dictation)        -->
             <!-- ============================================== -->
-            <Panel Margin="18,9"
+            <Panel Margin="18,9" MinHeight="28"
                    IsVisible="{Binding !IsPopupMode}">
 
                 <!-- 1. RECORDING / LISTENING STATE -->
@@ -42,7 +44,7 @@
                             VerticalAlignment="Center" />
 
                     <!-- "Listening" Text -->
-                    <TextBlock Text="Listening"
+                    <TextBlock Text="{Binding StatusText}"
                                FontSize="13.5"
                                FontWeight="SemiBold"
                                Foreground="#FFFFFF"
@@ -52,16 +54,16 @@
                     <TextBlock Text="{Binding DurationText}"
                                FontSize="12.5"
                                FontWeight="Medium"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="#A1A1AA"
                                VerticalAlignment="Center" />
 
                     <!-- 5 Dynamic White Equalizer Waveform Bars -->
-                    <StackPanel Orientation="Horizontal" Spacing="2.5" VerticalAlignment="Center" Margin="4,0,0,0">
-                        <Border Width="2.5" Height="{Binding LevelBar1}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
-                        <Border Width="2.5" Height="{Binding LevelBar2}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
-                        <Border Width="2.5" Height="{Binding LevelBar3}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
-                        <Border Width="2.5" Height="{Binding LevelBar4}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
-                        <Border Width="2.5" Height="{Binding LevelBar5}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                    <StackPanel Height="28" Orientation="Horizontal" Spacing="2.5" VerticalAlignment="Center" Margin="4,0,0,0">
+                        <Border Classes="wave" Width="3" Height="{Binding LevelBar1}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                        <Border Classes="wave" Width="3" Height="{Binding LevelBar2}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                        <Border Classes="wave" Width="3" Height="{Binding LevelBar3}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                        <Border Classes="wave" Width="3" Height="{Binding LevelBar4}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
+                        <Border Classes="wave" Width="3" Height="{Binding LevelBar5}" CornerRadius="1.25" Background="#FFFFFF" VerticalAlignment="Center" />
                     </StackPanel>
                 </StackPanel>
 

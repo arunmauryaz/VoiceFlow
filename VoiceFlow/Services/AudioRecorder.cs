@@ -12,10 +12,11 @@ namespace VoiceFlow.Services;
 public class AudioRecorder : IAudioRecorder
 {
     private WaveInEvent? _waveIn;
-    private MemoryStream? _recordingBuffer;
+    private Stream? _recordingBuffer;
     private readonly Stopwatch _stopwatch = new();
     private readonly object _lock = new();
     private bool _isDisposed;
+    private SpeechPhraseSegmenter? _segmenter;
 
     public bool IsRecording { get; private set; }
     public bool HasInputDevices
@@ -38,6 +39,7 @@ public class AudioRecorder : IAudioRecorder
     public event EventHandler<float>? AudioLevelChanged;
     public event EventHandler? RecordingStarted;
     public event EventHandler? RecordingStopped;
+    public event EventHandler<byte[]>? PhraseReady;
 
     public IReadOnlyList<AudioDeviceInfo> GetInputDevices()
     {
@@ -76,7 +78,7 @@ public class AudioRecorder : IAudioRecorder
         return devices;
     }
 
-    public void StartRecording(int deviceIndex = -1)
+    public void StartRecording(int deviceIndex = -1, bool continuous = false)
     {
         lock (_lock)
         {
@@ -93,13 +95,15 @@ public class AudioRecorder : IAudioRecorder
             }
 
             CurrentDeviceIndex = deviceIndex;
-            _recordingBuffer = new MemoryStream();
+            _recordingBuffer = continuous ? null : CreateTemporaryStream();
+            _segmenter = continuous ? new SpeechPhraseSegmenter() : null;
+            if (_segmenter != null) _segmenter.PhraseReady += (_, phrase) => PhraseReady?.Invoke(this, phrase);
 
             try
             {
                 _waveIn = new WaveInEvent
                 {
-                    DeviceNumber = deviceIndex >= 0 ? deviceIndex : 0,
+                    DeviceNumber = deviceIndex >= 0 && deviceIndex < WaveInEvent.DeviceCount ? deviceIndex : -1,
                     // 16kHz, 16-bit Mono is optimal for speech recognition
                     WaveFormat = new WaveFormat(16000, 16, 1),
                     BufferMilliseconds = 50
@@ -126,7 +130,7 @@ public class AudioRecorder : IAudioRecorder
 
     public Task<Stream> StopRecordingAsync()
     {
-        var tcs = new TaskCompletionSource<Stream>();
+        var tcs = new TaskCompletionSource<Stream>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         lock (_lock)
         {
@@ -149,7 +153,8 @@ public class AudioRecorder : IAudioRecorder
 
                 try
                 {
-                    var wavStream = CreateWavStream();
+                    _segmenter?.Flush();
+                    var wavStream = _segmenter == null ? CreateWavStream() : new MemoryStream();
                     AppLogger.LogInfo($"Audio recording stopped. Duration: {_stopwatch.Elapsed.TotalSeconds:F1}s, Size: {wavStream.Length} bytes.");
                     tcs.TrySetResult(wavStream);
                 }
@@ -184,12 +189,7 @@ public class AudioRecorder : IAudioRecorder
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
-        if (!IsRecording || _recordingBuffer == null) return;
-
-        lock (_lock)
-        {
-            _recordingBuffer.Write(e.Buffer, 0, e.BytesRecorded);
-        }
+        if (!IsRecording) return;
 
         // Calculate peak sample level for visual level meter
         float maxSample = 0f;
@@ -201,6 +201,13 @@ public class AudioRecorder : IAudioRecorder
             {
                 maxSample = sample32;
             }
+        }
+
+        lock (_lock)
+        {
+            if (!IsRecording) return;
+            _recordingBuffer?.Write(e.Buffer, 0, e.BytesRecorded);
+            _segmenter?.Append(e.Buffer, e.BytesRecorded, maxSample);
         }
 
         // Raise audio level event for UI responsiveness (0.0 to 1.0)
@@ -215,21 +222,29 @@ public class AudioRecorder : IAudioRecorder
         }
     }
 
-    private MemoryStream CreateWavStream()
+    private static FileStream CreateTemporaryStream()
+        => new(Path.Combine(Path.GetTempPath(), "voiceflow-recording-" + Guid.NewGuid().ToString("N") + ".wav"),
+            FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read, 65536,
+            FileOptions.DeleteOnClose | FileOptions.SequentialScan);
+
+    private Stream CreateWavStream()
     {
-        var rawBytes = _recordingBuffer?.ToArray() ?? Array.Empty<byte>();
-        var outputStream = new MemoryStream();
-
-        var waveFormat = new WaveFormat(16000, 16, 1);
-        using (var nonClosing = new VoiceFlow.Helpers.IgnoreDisposeStream(outputStream))
-        using (var writer = new WaveFileWriter(nonClosing, waveFormat))
+        var output = CreateTemporaryStream();
+        try
         {
-            writer.Write(rawBytes, 0, rawBytes.Length);
-            writer.Flush();
+            using (var nonClosing = new Helpers.IgnoreDisposeStream(output))
+            using (var writer = new WaveFileWriter(nonClosing, new WaveFormat(16000, 16, 1)))
+            {
+                if (_recordingBuffer != null)
+                {
+                    _recordingBuffer.Position = 0;
+                    _recordingBuffer.CopyTo(writer);
+                }
+            }
+            output.Position = 0;
+            return output;
         }
-
-        outputStream.Position = 0;
-        return outputStream;
+        catch { output.Dispose(); throw; }
     }
 
     private void Cleanup()
@@ -241,6 +256,7 @@ public class AudioRecorder : IAudioRecorder
             _waveIn = null;
         }
 
+        _segmenter = null;
         _recordingBuffer?.Dispose();
         _recordingBuffer = null;
     }

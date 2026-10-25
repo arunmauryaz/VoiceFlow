@@ -40,3 +40,5 @@ $RECYCLE.BIN/
 
 ## Downloaded installers / tools (not source code)
 innosetup.exe
+__pycache__/
+*.pyc

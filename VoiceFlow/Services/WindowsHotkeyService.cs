@@ -14,8 +14,9 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     private HotkeyConfig _config = HotkeyConfig.Default;
     private HotkeyActivationMode _mode = HotkeyActivationMode.HoldToTalk;
 
-    private bool _isHotkeyHeld;
-    private bool _isToggledOn;
+    private readonly ShortcutStateMachine _state = new();
+    private readonly System.Collections.Generic.HashSet<uint> _captureSuppressed = new();
+    private bool _paused;
     private bool _isRecordingShortcut;
     private bool _isCapturingSingleKey;
     private uint _lastPressedModifierVk;
@@ -23,7 +24,19 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     private bool _isDisposed;
 
     public bool IsRegistered => _hookId != IntPtr.Zero;
-    public bool IsPaused { get; set; }
+    public bool IsPaused
+    {
+        get => _paused;
+        set { if (value && !_paused) HotkeyReleased?.Invoke(this, EventArgs.Empty); _paused = value; _state.ResetActivation(); }
+    }
+    public void ResetActivation() => _state.ResetActivation();
+
+    public bool RegisterHotkeys(HotkeyConfig hold, HotkeyConfig toggle)
+    {
+        bool registered = RegisterHotkey(hold, HotkeyActivationMode.HoldToTalk);
+        _state.Configure(hold, toggle);
+        return registered;
+    }
     public bool IsRecordingShortcut => _isRecordingShortcut;
     public bool IsCapturingSingleKey => _isCapturingSingleKey;
     public HotkeyConfig CurrentConfig => _config;
@@ -66,6 +79,7 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     /// </summary>
     public void StartCapturingSingleKey()
     {
+        _state.BeginCapture();
         _isCapturingSingleKey = true;
         _isRecordingShortcut = false;
         _lastPressedModifierVk = 0;
@@ -87,8 +101,7 @@ public class WindowsHotkeyService : IGlobalHotkeyService
 
         _config = config;
         _mode = mode;
-        _isHotkeyHeld = false;
-        _isToggledOn = false;
+        _state.Configure(mode == HotkeyActivationMode.HoldToTalk ? config : null, mode == HotkeyActivationMode.Toggle ? config : null);
 
         try
         {
@@ -125,15 +138,14 @@ public class WindowsHotkeyService : IGlobalHotkeyService
         {
             Win32PInvoke.UnhookWindowsHookEx(_hookId);
             _hookId = IntPtr.Zero;
-            _isHotkeyHeld = false;
-            _isToggledOn = false;
+            _state.ResetActivation();
             AppLogger.LogInfo("Unregistered global keyboard hook.");
         }
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && !IsPaused)
+        if (nCode >= 0)
         {
             int msg = wParam.ToInt32();
             var kbStruct = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
@@ -142,11 +154,21 @@ public class WindowsHotkeyService : IGlobalHotkeyService
             bool isKeyDown = msg == Win32Constants.WM_KEYDOWN || msg == Win32Constants.WM_SYSKEYDOWN;
             bool isKeyUp = msg == Win32Constants.WM_KEYUP || msg == Win32Constants.WM_SYSKEYUP;
 
+            // Ignore injected input (including VoiceFlow's own text insertion).
+            if ((kbStruct.flags & 0x10) != 0)
+                return Win32PInvoke.CallNextHookEx(_hookId, nCode, wParam, lParam);
+            if (_captureSuppressed.Contains(vk))
+            {
+                if (isKeyUp) _captureSuppressed.Remove(vk);
+                return (IntPtr)1;
+            }
+
             // --- Slot-based single key capture (for the 3-box shortcut builder) ---
             if (_isCapturingSingleKey)
             {
                 if (isKeyDown)
                 {
+                    _captureSuppressed.Add(vk);
                     if (vk == Win32Constants.VK_ESCAPE)
                     {
                         StopCapturingSingleKey();
@@ -221,59 +243,15 @@ public class WindowsHotkeyService : IGlobalHotkeyService
                 }
             }
 
-            if (isKeyDown)
+            if (isKeyDown || isKeyUp)
             {
-                if (IsHotkeyTriggered(vk))
+                var result = _state.Process(vk, isKeyDown, !IsPaused);
+                if (!IsPaused)
                 {
-                    if (_mode == HotkeyActivationMode.HoldToTalk)
-                    {
-                        if (!_isHotkeyHeld)
-                        {
-                            _isHotkeyHeld = true;
-                            AppLogger.LogInfo($"Hotkey [{_config}] TRIGGERED (Hold to talk).");
-                            HotkeyPressed?.Invoke(this, EventArgs.Empty);
-                        }
-                    }
-                    else // Toggle mode
-                    {
-                        if (!_isToggledOn)
-                        {
-                            _isToggledOn = true;
-                            AppLogger.LogInfo($"Hotkey [{_config}] TOGGLED ON.");
-                            HotkeyPressed?.Invoke(this, EventArgs.Empty);
-                        }
-                        else
-                        {
-                            _isToggledOn = false;
-                            AppLogger.LogInfo($"Hotkey [{_config}] TOGGLED OFF.");
-                            HotkeyReleased?.Invoke(this, EventArgs.Empty);
-                        }
-                    }
-
-                    // Suppress key event for modifier keys, Windows keys, or Space so Windows
-                    // doesn't trigger OS actions (e.g. Start Menu on Win key, space char insertion)
-                    if (IsModifierKey(vk) || vk == Win32Constants.VK_SPACE)
-                    {
-                        return (IntPtr)1;
-                    }
+                    if (result.Action == 1) HotkeyPressed?.Invoke(this, EventArgs.Empty);
+                    if (result.Action == -1) HotkeyReleased?.Invoke(this, EventArgs.Empty);
                 }
-            }
-            else if (isKeyUp)
-            {
-                if (_mode == HotkeyActivationMode.HoldToTalk && _isHotkeyHeld)
-                {
-                    if (IsHotkeyReleased(vk))
-                    {
-                        _isHotkeyHeld = false;
-                        AppLogger.LogInfo($"Hotkey [{_config}] RELEASED.");
-                        HotkeyReleased?.Invoke(this, EventArgs.Empty);
-
-                        if (IsModifierKey(vk) || vk == Win32Constants.VK_SPACE)
-                        {
-                            return (IntPtr)1;
-                        }
-                    }
-                }
+                if (result.Suppress) return (IntPtr)1;
             }
         }
 
@@ -285,83 +263,6 @@ public class WindowsHotkeyService : IGlobalHotkeyService
     private static bool IsAltDown() => IsKeyDown(Win32Constants.VK_MENU) || IsKeyDown(Win32Constants.VK_LMENU) || IsKeyDown(Win32Constants.VK_RMENU);
     private static bool IsShiftDown() => IsKeyDown(Win32Constants.VK_SHIFT) || IsKeyDown(Win32Constants.VK_LSHIFT) || IsKeyDown(Win32Constants.VK_RSHIFT);
     private static bool IsWinDown() => IsKeyDown(Win32Constants.VK_LWIN) || IsKeyDown(Win32Constants.VK_RWIN);
-
-    private bool IsHotkeyTriggered(uint incomingVk)
-    {
-        // 1. Query physical state of all modifier keys
-        bool ctrlDown = IsCtrlDown() || incomingVk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3;
-        bool altDown = IsAltDown() || incomingVk is Win32Constants.VK_MENU or 0xA4 or 0xA5;
-        bool shiftDown = IsShiftDown() || incomingVk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1;
-        bool winDown = IsWinDown() || incomingVk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN;
-
-        // 2. Determine all modifier groups required by the entire hotkey configuration
-        // (including when the VirtualKey itself is a modifier, e.g. Ctrl + Win)
-        KeyModifiers totalRequiredMods = _config.Modifiers;
-        if (_config.VirtualKey is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) totalRequiredMods |= KeyModifiers.Control;
-        if (_config.VirtualKey is Win32Constants.VK_MENU or 0xA4 or 0xA5) totalRequiredMods |= KeyModifiers.Alt;
-        if (_config.VirtualKey is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) totalRequiredMods |= KeyModifiers.Shift;
-        if (_config.VirtualKey is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) totalRequiredMods |= KeyModifiers.Windows;
-
-        // Check required modifiers are pressed
-        if (totalRequiredMods.HasFlag(KeyModifiers.Control) && !ctrlDown) return false;
-        if (totalRequiredMods.HasFlag(KeyModifiers.Alt) && !altDown) return false;
-        if (totalRequiredMods.HasFlag(KeyModifiers.Shift) && !shiftDown) return false;
-        if (totalRequiredMods.HasFlag(KeyModifiers.Windows) && !winDown) return false;
-
-        // Check unrequired modifiers are NOT pressed
-        if (!totalRequiredMods.HasFlag(KeyModifiers.Control) && ctrlDown) return false;
-        if (!totalRequiredMods.HasFlag(KeyModifiers.Alt) && altDown) return false;
-        if (!totalRequiredMods.HasFlag(KeyModifiers.Shift) && shiftDown) return false;
-        if (!totalRequiredMods.HasFlag(KeyModifiers.Windows) && winDown) return false;
-
-        // 3. For non-modifier trigger keys (e.g. F8, Space), the incoming key MUST be that exact key
-        if (!IsModifierKey(_config.VirtualKey))
-        {
-            if (!IsVkMatch(incomingVk, _config.VirtualKey)) return false;
-        }
-        else
-        {
-            // For all-modifier combos (e.g. Ctrl + Win), the incoming key MUST be one of the required modifiers
-            if (!IsModifierMatch(incomingVk, totalRequiredMods)) return false;
-        }
-
-        return true;
-    }
-
-    private bool IsHotkeyReleased(uint incomingVk)
-    {
-        // For non-modifier keys, releasing the target VirtualKey releases the hotkey
-        if (IsVkMatch(incomingVk, _config.VirtualKey))
-            return true;
-
-        // Or if any required modifier is released
-        KeyModifiers totalRequiredMods = _config.Modifiers;
-        if (_config.VirtualKey is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) totalRequiredMods |= KeyModifiers.Control;
-        if (_config.VirtualKey is Win32Constants.VK_MENU or 0xA4 or 0xA5) totalRequiredMods |= KeyModifiers.Alt;
-        if (_config.VirtualKey is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) totalRequiredMods |= KeyModifiers.Shift;
-        if (_config.VirtualKey is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) totalRequiredMods |= KeyModifiers.Windows;
-
-        return IsModifierMatch(incomingVk, totalRequiredMods);
-    }
-
-    private static bool IsVkMatch(uint pressedVk, uint targetVk)
-    {
-        if (pressedVk == targetVk) return true;
-        if ((pressedVk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) && (targetVk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3)) return true;
-        if ((pressedVk is Win32Constants.VK_MENU or 0xA4 or 0xA5) && (targetVk is Win32Constants.VK_MENU or 0xA4 or 0xA5)) return true;
-        if ((pressedVk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) && (targetVk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1)) return true;
-        if ((pressedVk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) && (targetVk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN)) return true;
-        return false;
-    }
-
-    private static bool IsModifierMatch(uint vk, KeyModifiers required)
-    {
-        if (required.HasFlag(KeyModifiers.Control) && vk is Win32Constants.VK_CONTROL or 0xA2 or 0xA3) return true;
-        if (required.HasFlag(KeyModifiers.Alt) && vk is Win32Constants.VK_MENU or 0xA4 or 0xA5) return true;
-        if (required.HasFlag(KeyModifiers.Shift) && vk is Win32Constants.VK_SHIFT or 0xA0 or 0xA1) return true;
-        if (required.HasFlag(KeyModifiers.Windows) && vk is Win32Constants.VK_LWIN or Win32Constants.VK_RWIN) return true;
-        return false;
-    }
 
     private static KeyModifiers GetCurrentModifiers()
     {
